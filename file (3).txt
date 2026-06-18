@@ -1,0 +1,5 @@
+index.html
+manifest.webmanifest
+sw.js
+logo-arua.png
+jspdf.umd.min.js

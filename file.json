@@ -1,0 +1,26 @@
+{
+  "name": "Controle de Entrada - Portaria Aruá",
+  "short_name": "Portaria Aruá",
+  "description": "Aplicativo de controle de entrada de motoristas, visitantes e veículos.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f7",
+  "theme_color": "#1f4e79",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "logo-arua.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "logo-arua.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Controle de Entrada - Portaria Aruá</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#1f4e79" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Portaria Aruá" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+  <!-- Biblioteca PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #1f4e79;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --muted: #6b7280;
+      --danger: #b91c1c;
+      --whatsapp: #25d366;
+      --warning-bg: #fff8e6;
+      --warning-border: #f3d27a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #eef2f7;
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    header {
+      border-bottom: 3px solid var(--primary);
+      padding-bottom: 16px;
+      margin-bottom: 22px;
+    }
+
+    .logo-area {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .logo-area img {
+      max-width: 240px;
+      max-height: 110px;
+      object-fit: contain;
+    }
+
+    .logo-buttons,
+    .file-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      color: var(--primary);
+      font-size: 28px;
+    }
+
+    h2 {
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 18px;
+      margin-top: 28px;
+    }
+
+    .date-line {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .lgpd-box {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 22px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .lgpd-box strong {
+      color: #8a5a00;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      background: #ffffff;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: 2px solid rgba(31, 78, 121, 0.25);
+      border-color: var(--primary);
+    }
+
+    .file-box {
+      border: 1px dashed #9ca3af;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .preview-box {
+      margin-top: 10px;
+      min-height: 90px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .preview-box img {
+      max-width: 100%;
+      max-height: 260px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: #ffffff;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .btn-whatsapp {
+      background: var(--whatsapp);
+      color: #ffffff;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #ffffff;
+    }
+
+    .btn-install {
+      background: #0f766e;
+      color: #ffffff;
+      display: none;
+    }
+
+    .btn-logo {
+      background: #475569;
+      color: #ffffff;
+      font-size: 12px;
+      padding: 9px 13px;
+    }
+
+    .btn-logo-remove {
+      background: var(--danger);
+    }
+
+    .btn-camera {
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 13px;
+      padding: 10px 14px;
+    }
+
+    .btn-file {
+      background: #374151;
+      color: #ffffff;
+      font-size: 13px;
+      padding: 10px 14px;
+    }
+
+    .required {
+      color: var(--danger);
+    }
+
+    .footer-note {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      line-height: 1.4;
+    }
+
+    .created-by {
+      margin-top: 8px;
+      font-size: 9px;
+      color: #9ca3af;
+      text-align: right;
+    }
+
+    .small-warning {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    .hidden-input {
+      display: none;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      body {
+        padding: 10px;
+      }
+
+      .container {
+        padding: 18px;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+
+      .container {
+        box-shadow: none;
+        border-radius: 0;
+        max-width: 100%;
+      }
+
+      .actions,
+      .small-warning,
+      .logo-buttons,
+      .file-buttons {
+        display: none !important;
+      }
+
+      input,
+      select,
+      textarea {
+        border: 1px solid #999;
+      }
+
+      h2,
+      .lgpd-box {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container" id="relatorioPDF">
+    <header>
+      <div class="logo-area">
+        <img id="logoEmpresa" src="logo-arua.png" alt="Logomarca Aruá" />
+
+        <div class="logo-buttons">
+          <button type="button" class="btn-logo" onclick="selecionarLogo()">ALTERAR LOGO</button>
+          <button type="button" class="btn-logo btn-logo-remove" onclick="restaurarLogoPadrao()">RESTAURAR LOGO PADRÃO</button>
+        </div>
+
+        <input type="file" id="inputLogo" accept="image/*" class="hidden-input" />
+      </div>
+
+      <h1>Controle de Entrada - Portaria Aruá 🚗📝</h1>
+      <div class="date-line">Data do registro: <span id="dataAtual"></span></div>
+    </header>
+
+    <section class="lgpd-box">
+      <strong>🔒 AVISO DE PROTEÇÃO DE DADOS PESSOAIS — LGPD, Lei nº 13.709/2018</strong>
+
+      <p>
+        Os dados pessoais coletados neste formulário, como nome, CPF, RG, CNH,
+        documentos, placa de veículo e fotografias, são tratados pela
+        <strong>Aruá Comércio e Serviços Ltda.</strong>, na qualidade de
+        <strong>CONTROLADORA</strong>, com a finalidade de controle de acesso,
+        segurança patrimonial, rastreabilidade operacional e proteção das instalações.
+      </p>
+
+      <p>
+        <strong>Base legal:</strong> Art. 7º, inciso IX da Lei nº 13.709/2018 —
+        legítimo interesse do controlador.
+      </p>
+
+      <p>
+        Os dados serão armazenados com segurança, acessados apenas por pessoal autorizado
+        e não serão compartilhados com terceiros sem autorização, exceto quando exigido por lei.
+      </p>
+
+      <p>
+        <strong>Período de retenção:</strong> os registros serão mantidos pelo prazo necessário
+        ao cumprimento da finalidade ou conforme exigência legal.
+      </p>
+
+      <p>
+        Para exercer direitos de acesso, correção ou exclusão, entre em contato com o encarregado:
+        <strong>dpo@arua.com.br</strong>.
+      </p>
+    </section>
+
+    <form id="formControle">
+      <h2>Dados do Motorista / Visitante</h2>
+
+      <div class="grid">
+        <div class="field">
+          <label for="nomeMotorista">Nome Completo do Motorista / Visitante <span class="required">*</span></label>
+          <input type="text" id="nomeMotorista" required placeholder="Digite o nome completo" />
+        </div>
+
+        <div class="field">
+          <label for="documento">CPF / RG / CNH <span class="required">*</span></label>
+          <input type="text" id="documento" required placeholder="Digite o documento apresentado" />
+        </div>
+
+        <div class="field">
+          <label for="telefone">Telefone</label>
+          <input type="tel" id="telefone" placeholder="(00) 00000-0000" />
+        </div>
+
+        <div class="field">
+          <label for="empresa">Empresa / Transportadora <span class="required">*</span></label>
+          <input type="text" id="empresa" required placeholder="Nome da empresa" />
+        </div>
+
+        <div class="field">
+          <label for="validacaoCNH">Resultado da Validação CNH - VIO GOV</label>
+          <select id="validacaoCNH">
+            <option value="">Selecione</option>
+            <option value="Ok">Ok</option>
+            <option value="Aprovado">Aprovado</option>
+            <option value="Reprovado">Reprovado</option>
+            <option value="Não validado">Não validado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="field file-box">
+          <label>Foto do Motorista / Visitante</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoPessoaCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoPessoaArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoPessoaCamera" accept="image/*" capture="user" class="hidden-input" />
+          <input type="file" id="fotoPessoaArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewPessoa">Nenhuma foto selecionada</div>
+        </div>
+
+        <div class="field file-box">
+          <label>Foto do Documento / CNH</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoDocumentoCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoDocumentoArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoDocumentoCamera" accept="image/*" capture="environment" class="hidden-input" />
+          <input type="file" id="fotoDocumentoArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewDocumento">Nenhuma foto selecionada</div>
+        </div>
+      </div>
+
+      <h2>Dados do Veículo</h2>
+
+      <div class="grid">
+        <div class="field">
+          <label for="placa">Placa do Veículo <span class="required">*</span></label>
+          <input type="text" id="placa" required placeholder="ABC-1234 ou ABC1D23" maxlength="8" />
+        </div>
+
+        <div class="field">
+          <label for="veiculo">Tipo de Veículo</label>
+          <input type="text" id="veiculo" placeholder="Ex: caminhão, carreta, utilitário, carro" />
+        </div>
+
+        <div class="field">
+          <label for="validacaoPlaca">Resultado da Validação Placa - SINESP Cidadão</label>
+          <select id="validacaoPlaca">
+            <option value="">Selecione</option>
+            <option value="Ok">Ok</option>
+            <option value="Aprovado">Aprovado</option>
+            <option value="Reprovado">Reprovado</option>
+            <option value="Não validado">Não validado</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="validacaoCRLV">Resultado da Validação CRLV - VIO GOV</label>
+          <select id="validacaoCRLV">
+            <option value="">Selecione</option>
+            <option value="Ok">Ok</option>
+            <option value="Aprovado">Aprovado</option>
+            <option value="Reprovado">Reprovado</option>
+            <option value="Não validado">Não validado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="field file-box">
+          <label>Foto da Placa do Veículo</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoPlacaCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoPlacaArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoPlacaCamera" accept="image/*" capture="environment" class="hidden-input" />
+          <input type="file" id="fotoPlacaArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewPlaca">Nenhuma foto selecionada</div>
+        </div>
+
+        <div class="field file-box">
+          <label>Foto do Tipo de Veículo / Característica</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoTipoVeiculoCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoTipoVeiculoArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoTipoVeiculoCamera" accept="image/*" capture="environment" class="hidden-input" />
+          <input type="file" id="fotoTipoVeiculoArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewTipoVeiculo">Nenhuma foto selecionada</div>
+        </div>
+
+        <div class="field file-box">
+          <label>Foto do CRLV / Documento do Veículo</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoCRLVCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoCRLVArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoCRLVCamera" accept="image/*" capture="environment" class="hidden-input" />
+          <input type="file" id="fotoCRLVArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewCRLV">Nenhuma foto selecionada</div>
+        </div>
+
+        <div class="field file-box">
+          <label>Foto Geral do Veículo - Visão Completa</label>
+
+          <div class="file-buttons">
+            <button type="button" class="btn-camera" onclick="abrirCamera('fotoCaminhaoCamera')">📷 CÂMERA / CELULAR</button>
+            <button type="button" class="btn-file" onclick="buscarArquivo('fotoCaminhaoArquivo')">📁 ARQUIVO LOCAL</button>
+          </div>
+
+          <input type="file" id="fotoCaminhaoCamera" accept="image/*" capture="environment" class="hidden-input" />
+          <input type="file" id="fotoCaminhaoArquivo" accept="image/*" class="hidden-input" />
+
+          <div class="preview-box" id="previewCaminhao">Nenhuma foto selecionada</div>
+        </div>
+      </div>
+
+      <h2>Motivo da Entrada</h2>
+
+      <div class="grid">
+        <div class="field">
+          <label for="finalidade">Finalidade da Entrada <span class="required">*</span></label>
+          <select id="finalidade" required>
+            <option value="">Selecione</option>
+            <option value="Carga">Carga</option>
+            <option value="Descarga">Descarga</option>
+            <option value="Coleta">Coleta</option>
+            <option value="Entrega">Entrega</option>
+            <option value="Manutenção">Manutenção</option>
+            <option value="Visita">Visita</option>
+            <option value="Visita técnica">Visita técnica</option>
+            <option value="Serviço Terceirizado">Serviço Terceirizado</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="destino">Setor / Destino Interno <span class="required">*</span></label>
+          <input type="text" id="destino" required placeholder="Ex: almoxarifado, oficina, expedição" />
+        </div>
+
+        <div class="field">
+          <label for="responsavel">Responsável pela Autorização <span class="required">*</span></label>
+          <input type="text" id="responsavel" required placeholder="Nome do responsável" />
+        </div>
+
+        <div class="field">
+          <label for="porteiro">Porteiro / Operador <span class="required">*</span></label>
+          <input type="text" id="porteiro" required placeholder="Nome de quem registrou" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="observacoes">Observações</label>
+        <textarea id="observacoes" placeholder="Exemplo: condutor orientado sobre vestimenta, EPI, regras internas etc."></textarea>
+      </div>
+
+      <h2>Dados Gerais do Registro</h2>
+
+      <div class="grid">
+        <div class="field">
+          <label for="dataHora">Data e Hora do Registro <span class="required">*</span></label>
+          <input type="datetime-local" id="dataHora" required />
+        </div>
+
+        <div class="field">
+          <label for="statusAprovacao">Status da Aprovação <span class="required">*</span></label>
+          <select id="statusAprovacao" required>
+            <option value="">Selecione</option>
+            <option value="APROVADO - Entrada Liberada">APROVADO - Entrada Liberada</option>
+            <option value="PENDENTE - Aguardando Validação">PENDENTE - Aguardando Validação</option>
+            <option value="REPROVADO - Entrada Negada">REPROVADO - Entrada Negada</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="btnInstalarApp" class="btn-install" onclick="instalarApp()">INSTALAR APP</button>
+        <button type="button" class="btn-primary" onclick="validarPreenchimento()">VALIDAR PREENCHIMENTO</button>
+        <button type="button" class="btn-secondary" onclick="window.print()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" id="btnCompartilhar" class="btn-whatsapp" onclick="gerarPdfECompartilhar()">GERAR PDF E COMPARTILHAR WHATSAPP</button>
+        <button type="button" class="btn-danger" onclick="limparFormulario()">LIMPAR FORMULÁRIO</button>
+      </div>
+
+      <div class="small-warning">
+        Atenção: o botão <strong>VALIDAR PREENCHIMENTO</strong> não salva dados.
+        O registro formal é o PDF gerado e salvo/compartilhado.
+      </div>
+    </form>
+
+    <div class="footer-note">
+      Documento gerado para controle de acesso, segurança patrimonial e rastreabilidade operacional.
+      O tratamento dos dados deve observar a LGPD, políticas internas de segurança da informação
+      e restrição de acesso apenas a pessoas autorizadas.
+
+      <div class="created-by">Criado por Luiz Alberto Castro V2</div>
+    </div>
+  </main>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+
+    let eventoInstalacao = null;
+    let logoAtualBase64 = null;
+
+    let fotos = {
+      pessoa: null,
+      documento: null,
+      placa: null,
+      tipoVeiculo: null,
+      crlv: null,
+      caminhao: null
+    };
+
+    window.addEventListener("beforeinstallprompt", function (event) {
+      event.preventDefault();
+      eventoInstalacao = event;
+
+      const botao = document.getElementById("btnInstalarApp");
+
+      if (botao) {
+        botao.style.display = "inline-block";
+      }
+    });
+
+    window.addEventListener("appinstalled", function () {
+      eventoInstalacao = null;
+
+      const botao = document.getElementById("btnInstalarApp");
+
+      if (botao) {
+        botao.style.display = "none";
+      }
+
+      alert("App instalado com sucesso na tela inicial.");
+    });
+
+    async function instalarApp() {
+      if (!eventoInstalacao) {
+        alert("Instalação automática não disponível neste navegador. Use o menu do navegador para adicionar à tela inicial.");
+        return;
+      }
+
+      eventoInstalacao.prompt();
+
+      const escolha = await eventoInstalacao.userChoice;
+
+      if (escolha.outcome === "accepted") {
+        console.log("Usuário aceitou instalar o app.");
+      }
+
+      eventoInstalacao = null;
+
+      const botao = document.getElementById("btnInstalarApp");
+
+      if (botao) {
+        botao.style.display = "none";
+      }
+    }
+
+    window.addEventListener("load", function () {
+      document.getElementById("dataAtual").textContent = formatarDataExtensoBR(new Date());
+
+      preencherDataHoraAtual();
+      carregarLogoSalva();
+      registrarServiceWorker();
+
+      configurarPreview("fotoPessoaCamera", "previewPessoa", "pessoa");
+      configurarPreview("fotoPessoaArquivo", "previewPessoa", "pessoa");
+
+      configurarPreview("fotoDocumentoCamera", "previewDocumento", "documento");
+      configurarPreview("fotoDocumentoArquivo", "previewDocumento", "documento");
+
+      configurarPreview("fotoPlacaCamera", "previewPlaca", "placa");
+      configurarPreview("fotoPlacaArquivo", "previewPlaca", "placa");
+
+      configurarPreview("fotoTipoVeiculoCamera", "previewTipoVeiculo", "tipoVeiculo");
+      configurarPreview("fotoTipoVeiculoArquivo", "previewTipoVeiculo", "tipoVeiculo");
+
+      configurarPreview("fotoCRLVCamera", "previewCRLV", "crlv");
+      configurarPreview("fotoCRLVArquivo", "previewCRLV", "crlv");
+
+      configurarPreview("fotoCaminhaoCamera", "previewCaminhao", "caminhao");
+      configurarPreview("fotoCaminhaoArquivo", "previewCaminhao", "caminhao");
+
+      document.getElementById("inputLogo").addEventListener("change", function () {
+        alterarLogo(this);
+      });
+
+      document.getElementById("placa").addEventListener("input", function () {
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+      });
+    });
+
+    function registrarServiceWorker() {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("sw.js").catch(function (erro) {
+          console.warn("Service Worker não registrado:", erro);
+        });
+      }
+    }
+
+    function formatarDataExtensoBR(data) {
+      return data.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric"
+      });
+    }
+
+    function preencherDataHoraAtual() {
+      const agora = new Date();
+      const ano = agora.getFullYear();
+      const mes = String(agora.getMonth() + 1).padStart(2, "0");
+      const dia = String(agora.getDate()).padStart(2, "0");
+      const hora = String(agora.getHours()).padStart(2, "0");
+      const minuto = String(agora.getMinutes()).padStart(2, "0");
+
+      document.getElementById("dataHora").value = `${ano}-${mes}-${dia}T${hora}:${minuto}`;
+    }
+
+    function selecionarLogo() {
+      document.getElementById("inputLogo").click();
+    }
+
+    function alterarLogo(input) {
+      const arquivo = input.files[0];
+
+      if (!arquivo) return;
+
+      if (!arquivo.type.startsWith("image/")) {
+        alert("Selecione apenas arquivo de imagem.");
+        input.value = "";
+        return;
+      }
+
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        logoAtualBase64 = e.target.result;
+        document.getElementById("logoEmpresa").src = logoAtualBase64;
+        localStorage.setItem("logoArua", logoAtualBase64);
+      };
+
+      reader.readAsDataURL(arquivo);
+    }
+
+    function carregarLogoSalva() {
+      const logoSalva = localStorage.getItem("logoArua");
+
+      if (logoSalva) {
+        logoAtualBase64 = logoSalva;
+        document.getElementById("logoEmpresa").src = logoSalva;
+      }
+    }
+
+    function restaurarLogoPadrao() {
+      localStorage.removeItem("logoArua");
+      logoAtualBase64 = null;
+      document.getElementById("logoEmpresa").src = "logo-arua.png";
+      alert("Logo padrão restaurada.");
+    }
+
+    function abrirCamera(inputId) {
+      const input = document.getElementById(inputId);
+
+      if (!input) {
+        alert("Campo de câmera não encontrado.");
+        return;
+      }
+
+      input.click();
+    }
+
+    function buscarArquivo(inputId) {
+      const input = document.getElementById(inputId);
+
+      if (!input) {
+        alert("Campo de arquivo local não encontrado.");
+        return;
+      }
+
+      input.click();
+    }
+
+    function configurarPreview(inputId, previewId, chaveFoto) {
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+
+      if (!input || !preview) return;
+
+      input.addEventListener("change", function () {
+        const arquivo = input.files[0];
+
+        if (!arquivo) return;
+
+        if (!arquivo.type.startsWith("image/")) {
+          alert("Selecione apenas arquivos de imagem.");
+          input.value = "";
+          return;
+        }
+
+        const limiteMB = 10;
+        const limiteBytes = limiteMB * 1024 * 1024;
+
+        if (arquivo.size > limiteBytes) {
+          alert(`A imagem excede ${limiteMB} MB. Reduza o tamanho antes de anexar.`);
+          input.value = "";
+          return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          fotos[chaveFoto] = e.target.result;
+          preview.innerHTML = "";
+
+          const img = document.createElement("img");
+          img.src = e.target.result;
+          img.alt = "Pré-visualização da imagem";
+
+          preview.appendChild(img);
+        };
+
+        reader.readAsDataURL(arquivo);
+      });
+    }
+
+    function valor(id) {
+      const elemento = document.getElementById(id);
+      return elemento ? elemento.value.trim() : "";
+    }
+
+    function validarPreenchimento() {
+      const form = document.getElementById("formControle");
+
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return false;
+      }
+
+      alert("Preenchimento validado com sucesso.");
+      return true;
+    }
+
+    function limparFormulario() {
+      const confirmar = confirm("Tem certeza que deseja limpar todo o formulário?");
+
+      if (!confirmar) return;
+
+      document.getElementById("formControle").reset();
+      preencherDataHoraAtual();
+
+      fotos = {
+        pessoa: null,
+        documento: null,
+        placa: null,
+        tipoVeiculo: null,
+        crlv: null,
+        caminhao: null
+      };
+
+      const previews = {
+        previewPessoa: "Nenhuma foto selecionada",
+        previewDocumento: "Nenhuma foto selecionada",
+        previewPlaca: "Nenhuma foto selecionada",
+        previewTipoVeiculo: "Nenhuma foto selecionada",
+        previewCRLV: "Nenhuma foto selecionada",
+        previewCaminhao: "Nenhuma foto selecionada"
+      };
+
+      Object.keys(previews).forEach(function (id) {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.textContent = previews[id];
+      });
+
+      const inputsFotos = [
+        "fotoPessoaCamera",
+        "fotoPessoaArquivo",
+        "fotoDocumentoCamera",
+        "fotoDocumentoArquivo",
+        "fotoPlacaCamera",
+        "fotoPlacaArquivo",
+        "fotoTipoVeiculoCamera",
+        "fotoTipoVeiculoArquivo",
+        "fotoCRLVCamera",
+        "fotoCRLVArquivo",
+        "fotoCaminhaoCamera",
+        "fotoCaminhaoArquivo"
+      ];
+
+      inputsFotos.forEach(function (id) {
+        const input = document.getElementById(id);
+        if (input) input.value = "";
+      });
+    }
+
+    function adicionarTexto(doc, titulo, texto, x, y) {
+      doc.setFont("helvetica", "bold");
+      doc.text(titulo, x, y);
+
+      doc.setFont("helvetica", "normal");
+      const linhas = doc.splitTextToSize(texto || "-", 170);
+      doc.text(linhas, x, y + 6);
+
+      return y + 6 + linhas.length * 5;
+    }
+
+    function novaPaginaSeNecessario(doc, y, margemInferior = 270) {
+      if (y > margemInferior) {
+        doc.addPage();
+        return 20;
+      }
+
+      return y;
+    }
+
+    function adicionarImagemPDF(doc, titulo, imagemBase64, y) {
+      y = novaPaginaSeNecessario(doc, y, 220);
+
+      doc.setFont("helvetica", "bold");
+      doc.text(titulo, 15, y);
+      y += 5;
+
+      if (!imagemBase64) {
+        doc.setFont("helvetica", "normal");
+        doc.text("Imagem não anexada.", 15, y + 5);
+        return y + 15;
+      }
+
+      try {
+        doc.addImage(imagemBase64, "JPEG", 15, y, 80, 55);
+      } catch (erro) {
+        try {
+          doc.addImage(imagemBase64, "PNG", 15, y, 80, 55);
+        } catch (erroInterno) {
+          doc.setFont("helvetica", "normal");
+          doc.text("Não foi possível inserir a imagem no PDF.", 15, y + 5);
+          return y + 15;
+        }
+      }
+
+      return y + 65;
+    }
+
+    function gerarPDF() {
+      const doc = new jsPDF("p", "mm", "a4");
+
+      let y = 15;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("Controle de Entrada - Portaria Aruá", 15, y);
+
+      y += 8;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 15, y);
+
+      y += 10;
+
+      doc.setDrawColor(31, 78, 121);
+      doc.line(15, y, 195, y);
+
+      y += 10;
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Dados do Motorista / Visitante", 15, y);
+
+      y += 8;
+
+      doc.setFontSize(10);
+      y = adicionarTexto(doc, "Nome:", valor("nomeMotorista"), 15, y);
+      y = adicionarTexto(doc, "Documento:", valor("documento"), 15, y);
+      y = adicionarTexto(doc, "Telefone:", valor("telefone"), 15, y);
+      y = adicionarTexto(doc, "Empresa / Transportadora:", valor("empresa"), 15, y);
+      y = adicionarTexto(doc, "Validação CNH - VIO GOV:", valor("validacaoCNH"), 15, y);
+
+      y += 4;
+      y = novaPaginaSeNecessario(doc, y);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Dados do Veículo", 15, y);
+
+      y += 8;
+
+      doc.setFontSize(10);
+      y = adicionarTexto(doc, "Placa:", valor("placa"), 15, y);
+      y = adicionarTexto(doc, "Tipo de Veículo:", valor("veiculo"), 15, y);
+      y = adicionarTexto(doc, "Validação Placa - SINESP Cidadão:", valor("validacaoPlaca"), 15, y);
+      y = adicionarTexto(doc, "Validação CRLV - VIO GOV:", valor("validacaoCRLV"), 15, y);
+
+      y += 4;
+      y = novaPaginaSeNecessario(doc, y);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Motivo da Entrada", 15, y);
+
+      y += 8;
+
+      doc.setFontSize(10);
+      y = adicionarTexto(doc, "Finalidade:", valor("finalidade"), 15, y);
+      y = adicionarTexto(doc, "Destino Interno:", valor("destino"), 15, y);
+      y = adicionarTexto(doc, "Responsável pela Autorização:", valor("responsavel"), 15, y);
+      y = adicionarTexto(doc, "Porteiro / Operador:", valor("porteiro"), 15, y);
+      y = adicionarTexto(doc, "Observações:", valor("observacoes"), 15, y);
+
+      y += 4;
+      y = novaPaginaSeNecessario(doc, y);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Dados Gerais do Registro", 15, y);
+
+      y += 8;
+
+      doc.setFontSize(10);
+      y = adicionarTexto(doc, "Data e Hora do Registro:", valor("dataHora"), 15, y);
+      y = adicionarTexto(doc, "Status da Aprovação:", valor("statusAprovacao"), 15, y);
+
+      doc.addPage();
+      y = 15;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Anexos Fotográficos", 15, y);
+
+      y += 10;
+
+      y = adicionarImagemPDF(doc, "Foto do Motorista / Visitante", fotos.pessoa, y);
+      y = adicionarImagemPDF(doc, "Foto do Documento / CNH", fotos.documento, y);
+      y = adicionarImagemPDF(doc, "Foto da Placa do Veículo", fotos.placa, y);
+      y = adicionarImagemPDF(doc, "Foto do Tipo de Veículo / Característica", fotos.tipoVeiculo, y);
+      y = adicionarImagemPDF(doc, "Foto do CRLV / Documento do Veículo", fotos.crlv, y);
+      y = adicionarImagemPDF(doc, "Foto Geral do Veículo - Visão Completa", fotos.caminhao, y);
+
+      const totalPaginas = doc.internal.getNumberOfPages();
+
+      for (let i = 1; i <= totalPaginas; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          "Documento gerado para controle de acesso, segurança patrimonial e rastreabilidade operacional.",
+          15,
+          287
+        );
+        doc.text(`Página ${i} de ${totalPaginas}`, 170, 287);
+        doc.text("Criado por Luiz Alberto Castro V2", 155, 292);
+      }
+
+      return doc;
+    }
+
+    async function gerarPdfECompartilhar() {
+      if (!validarPreenchimento()) return;
+
+      const botao = document.getElementById("btnCompartilhar");
+      botao.disabled = true;
+      botao.textContent = "GERANDO PDF...";
+
+      try {
+        const doc = gerarPDF();
+
+        const placa = valor("placa") || "veiculo";
+        const nomeArquivo = `controle-entrada-${placa}-${Date.now()}.pdf`;
+        const pdfBlob = doc.output("blob");
+
+        const arquivo = new File([pdfBlob], nomeArquivo, {
+          type: "application/pdf"
+        });
+
+        if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
+          await navigator.share({
+            title: "Controle de Entrada - Portaria Aruá",
+            text: "Segue o PDF do controle de entrada.",
+            files: [arquivo]
+          });
+        } else {
+          doc.save(nomeArquivo);
+
+          const mensagem = encodeURIComponent(
+            `Controle de Entrada - Portaria Aruá\n\n` +
+            `Motorista: ${valor("nomeMotorista")}\n` +
+            `Empresa: ${valor("empresa")}\n` +
+            `Placa: ${valor("placa")}\n` +
+            `Status: ${valor("statusAprovacao")}\n\n` +
+            `O PDF foi baixado. Anexe manualmente no WhatsApp.`
+          );
+
+          window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+        }
+      } catch (erro) {
+        console.error(erro);
+        alert("Erro ao gerar ou compartilhar o PDF.");
+      } finally {
+        botao.disabled = false;
+        botao.textContent = "GERAR PDF E COMPARTILHAR WHATSAPP";
+      }
+    }
+  </script>
+</body>
+</html>
