@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const path = require("node:path");
 
 const html = fs.readFileSync(path.resolve(__dirname, "../1 - controle-acesso-motoristas.html"), "utf8");
-const scripts = Array.from(html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi));
+const scripts = Array.from(html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi));
 assert.ok(scripts.length, "Script inline não encontrado");
 const code = scripts[scripts.length - 1][1];
 
