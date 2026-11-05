@@ -30,3 +30,18 @@ Esta cópia GitHub não tem autenticação, trilha de auditoria, histórico, ban
 
 ## Volta à versão anterior
 Não realizar merge. Se ocorrer merge e houver regressão, reverter os commits desta branch, preservando os arquivos `file.json` e `file (2).js` antigos para rastreabilidade.
+
+## Testes e evidências (04/11/2026)
+- Foram avaliados cenários simulados de carregamento do HTML com e sem jsPDF; formulário, fotos, validação, exportação, impressão, compartilhamento sem API `File`, paginação e dados pessoais ausentes da URL do WhatsApp.
+- A suíte `tests/portaria_pdf_boot_smoke.cjs` contém 7 verificações Node sem dependências externas. Os 7 casos foram executados em ambiente JavaScript simulado e passaram; **a execução nativa por Node neste repositório/CI e a prova em navegador real permanecem pendentes**.
+- Sintaxe do JavaScript, sintaxe do Service Worker e JSON do manifesto foram examinados.
+- Correção posterior: o PDF inclui identificação resumida de proteção dos dados na primeira página; observações longas são paginadas e os registros curtos são compactados.
+- O link de contingência ao WhatsApp não contém mais nomes, documentos ou placas no parâmetro `text`.
+- Falhas de acesso ao armazenamento do navegador não interrompem a configuração de anexos.
+
+### Teste manual da suíte em cópia local do repositório
+```bash
+node --test tests/portaria_pdf_boot_smoke.cjs
+```
+
+**Gate de release:** antes de integrar à `main`, exigir teste com JS/PDF no Chrome/Edge realmente utilizado e confirmar o modelo oficial do relatório da v3.7.1. Este código **não repõe** autenticação, histórico compartilhado ou banco de dados existentes em outras versões.
