@@ -291,6 +291,12 @@
       display: none;
     }
 
+    /* Rolagem normal e dimensões estáveis no celular, sem alterar layout de impressão. */
+    html { min-height: 100%; overflow-x: hidden; }
+    body { min-height: 100%; overflow-x: hidden; overflow-y: auto; }
+    .field, .file-box { min-width: 0; }
+    input, select, textarea { max-width: 100%; }
+
     @media (max-width: 720px) {
       .grid {
         grid-template-columns: 1fr;
@@ -619,15 +625,18 @@
       <div class="actions">
         <button type="button" id="btnInstalarApp" class="btn-install" onclick="instalarApp()">INSTALAR APP</button>
         <button type="button" class="btn-primary" onclick="validarPreenchimento()">VALIDAR PREENCHIMENTO</button>
-        <button type="button" class="btn-secondary" onclick="window.print()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" class="btn-secondary" onclick="imprimirRegistro()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" class="btn-primary" id="btnBaixarPDF" onclick="baixarPdfLocal()">BAIXAR PDF</button>
         <button type="button" id="btnCompartilhar" class="btn-whatsapp" onclick="gerarPdfECompartilhar()">GERAR PDF E COMPARTILHAR WHATSAPP</button>
         <button type="button" class="btn-danger" onclick="limparFormulario()">LIMPAR FORMULÁRIO</button>
       </div>
 
       <div class="small-warning">
-        Atenção: o botão <strong>VALIDAR PREENCHIMENTO</strong> não salva dados.
-        O registro formal é o PDF gerado e salvo/compartilhado.
+        Atenção: <strong>VALIDAR PREENCHIMENTO</strong> não salva dados.
+        O registro formal depende de gerar e guardar o PDF.
+        O navegador não mantém um histórico de registros neste HTML.
       </div>
+      <div id="estadoPdf" class="small-warning" role="status" aria-live="polite"></div>
     </form>
 
     <div class="footer-note">
@@ -707,6 +716,17 @@
       preencherDataHoraAtual();
       carregarLogoSalva();
       registrarServiceWorker();
+      const estadoPdf = document.getElementById("estadoPdf");
+      if (estadoPdf) {
+        estadoPdf.textContent = jsPDF
+          ? "PDF disponível. Baixe e confira o arquivo antes de limpar o formulário."
+          : "Biblioteca PDF não carregou. Use a impressão do navegador como contingência.";
+      }
+      // Pressionar Enter nunca pode apagar acidentalmente os campos preenchidos.
+      document.getElementById("formControle").addEventListener("submit", function (evento) {
+        evento.preventDefault();
+        validarPreenchimento();
+      });
 
       configurarPreview("fotoPessoaCamera", "previewPessoa", "pessoa");
       configurarPreview("fotoPessoaArquivo", "previewPessoa", "pessoa");
@@ -875,7 +895,7 @@
       return elemento ? elemento.value.trim() : "";
     }
 
-    function validarPreenchimento() {
+    function validarPreenchimento(silencioso) {
       const form = document.getElementById("formControle");
 
       if (!form.checkValidity()) {
@@ -883,8 +903,32 @@
         return false;
       }
 
-      alert("Preenchimento validado com sucesso.");
+      if (!silencioso) alert("Preenchimento validado com sucesso.");
       return true;
+    }
+
+    function imprimirRegistro() {
+      if (!validarPreenchimento(true)) return;
+      window.print();
+    }
+
+    function baixarPdfLocal() {
+      if (!validarPreenchimento(true)) return;
+      if (!jsPDF) {
+        alert("A biblioteca PDF está indisponível. Utilize IMPRIMIR / SALVAR PDF.");
+        return;
+      }
+      const botao = document.getElementById("btnBaixarPDF");
+      botao.disabled = true;
+      try {
+        const nome = "controle-entrada-" + (valor("placa") || "veiculo") + "-" + Date.now() + ".pdf";
+        gerarPDF().save(nome);
+      } catch (erro) {
+        console.error("Falha na geração local de PDF:", erro && erro.name);
+        alert("Não foi possível gerar o PDF. Nenhum dado foi apagado. Tente imprimir.");
+      } finally {
+        botao.disabled = false;
+      }
     }
 
     function limparFormulario() {
@@ -940,51 +984,54 @@
     }
 
     function adicionarTexto(doc, titulo, texto, x, y) {
+      let cursor = novaPaginaSeNecessario(doc, y, 255);
       doc.setFont("helvetica", "bold");
-      doc.text(titulo, x, y);
-
+      doc.text(titulo, x, cursor);
+      cursor += 6;
       doc.setFont("helvetica", "normal");
       const linhas = doc.splitTextToSize(texto || "-", 170);
-      doc.text(linhas, x, y + 6);
-
-      return y + 6 + linhas.length * 5;
+      for (const linha of linhas) {
+        if (cursor > 267) {
+          doc.addPage();
+          cursor = 20;
+          doc.setFont("helvetica", "normal");
+        }
+        doc.text(linha, x, cursor);
+        cursor += 5;
+      }
+      return cursor;
     }
 
-    function novaPaginaSeNecessario(doc, y, margemInferior = 270) {
+    function novaPaginaSeNecessario(doc, y, margemInferior = 255) {
       if (y > margemInferior) {
         doc.addPage();
         return 20;
       }
-
       return y;
     }
 
-    function adicionarImagemPDF(doc, titulo, imagemBase64, y) {
-      y = novaPaginaSeNecessario(doc, y, 220);
-
+    // Duas fotografias por linha, sem distorcer documentos e placas.
+    function adicionarFotoCelula(doc, titulo, imagemBase64, x, y) {
+      const largura = 82, altura = 54, topo = y + 11;
       doc.setFont("helvetica", "bold");
-      doc.text(titulo, 15, y);
-      y += 5;
-
+      doc.setFontSize(9);
+      doc.text(doc.splitTextToSize(titulo, largura), x, y);
+      doc.setFont("helvetica", "normal");
       if (!imagemBase64) {
-        doc.setFont("helvetica", "normal");
-        doc.text("Imagem não anexada.", 15, y + 5);
-        return y + 15;
+        doc.text("Imagem não anexada.", x, topo + 8);
+        return;
       }
-
       try {
-        doc.addImage(imagemBase64, "JPEG", 15, y, 80, 55);
+        const propriedades = doc.getImageProperties(imagemBase64);
+        if (!propriedades.width || !propriedades.height) throw new Error("Imagem sem dimensões");
+        const escala = Math.min(largura / propriedades.width, altura / propriedades.height);
+        const w = propriedades.width * escala, h = propriedades.height * escala;
+        const formato = /^data:image\/png/i.test(imagemBase64) ? "PNG" : "JPEG";
+        doc.addImage(imagemBase64, formato, x + (largura - w) / 2,
+          topo + (altura - h) / 2, w, h);
       } catch (erro) {
-        try {
-          doc.addImage(imagemBase64, "PNG", 15, y, 80, 55);
-        } catch (erroInterno) {
-          doc.setFont("helvetica", "normal");
-          doc.text("Não foi possível inserir a imagem no PDF.", 15, y + 5);
-          return y + 15;
-        }
+        doc.text("Imagem não suportada. Confira o anexo.", x, topo + 8);
       }
-
-      return y + 65;
     }
 
     function gerarPDF() {
@@ -1076,12 +1123,18 @@
 
       y += 10;
 
-      y = adicionarImagemPDF(doc, "Foto do Motorista / Visitante", fotos.pessoa, y);
-      y = adicionarImagemPDF(doc, "Foto do Documento / CNH", fotos.documento, y);
-      y = adicionarImagemPDF(doc, "Foto da Placa do Veículo", fotos.placa, y);
-      y = adicionarImagemPDF(doc, "Foto do Tipo de Veículo / Característica", fotos.tipoVeiculo, y);
-      y = adicionarImagemPDF(doc, "Foto do CRLV / Documento do Veículo", fotos.crlv, y);
-      y = adicionarImagemPDF(doc, "Foto Geral do Veículo - Visão Completa", fotos.caminhao, y);
+      const anexos = [
+        ["Foto do Motorista / Visitante", fotos.pessoa],
+        ["Foto do Documento / CNH", fotos.documento],
+        ["Foto da Placa do Veículo", fotos.placa],
+        ["Foto do Tipo de Veículo / Característica", fotos.tipoVeiculo],
+        ["Foto do CRLV / Documento do Veículo", fotos.crlv],
+        ["Foto Geral do Veículo - Visão Completa", fotos.caminhao]
+      ];
+      anexos.forEach(function (anexo, i) {
+        const coluna = i % 2, linha = Math.floor(i / 2);
+        adicionarFotoCelula(doc, anexo[0], anexo[1], coluna === 0 ? 15 : 111, 25 + linha * 77);
+      });
 
       const totalPaginas = doc.internal.getNumberOfPages();
 
@@ -1102,7 +1155,7 @@
     }
 
     async function gerarPdfECompartilhar() {
-      if (!validarPreenchimento()) return;
+      if (!validarPreenchimento(true)) return;
       if (!jsPDF) {
         alert("Biblioteca de PDF indisponível. O cadastro continua funcionando. Use IMPRIMIR / SALVAR PDF como contingência; a formatação pode ser diferente.");
         return;
@@ -1119,17 +1172,21 @@
         const nomeArquivo = `controle-entrada-${placa}-${Date.now()}.pdf`;
         const pdfBlob = doc.output("blob");
 
-        const arquivo = new File([pdfBlob], nomeArquivo, {
-          type: "application/pdf"
-        });
-
-        if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
-          await navigator.share({
-            title: "Controle de Entrada - Portaria Aruá",
-            text: "Segue o PDF do controle de entrada.",
-            files: [arquivo]
-          });
-        } else {
+        // Em navegadores antigos, File e Web Share podem não existir.
+        let compartilhado = false;
+        if (typeof File === "function" && typeof navigator.canShare === "function"
+            && typeof navigator.share === "function") {
+          const arquivo = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+          if (navigator.canShare({ files: [arquivo] })) {
+            await navigator.share({
+              title: "Controle de Entrada - Portaria Aruá",
+              text: "Segue o PDF do controle de entrada.",
+              files: [arquivo]
+            });
+            compartilhado = true;
+          }
+        }
+        if (!compartilhado) {
           doc.save(nomeArquivo);
 
           const mensagem = encodeURIComponent(
@@ -1144,8 +1201,9 @@
           window.open(`https://wa.me/?text=${mensagem}`, "_blank");
         }
       } catch (erro) {
-        console.error(erro);
-        alert("Erro ao gerar ou compartilhar o PDF.");
+        if (erro && erro.name === "AbortError") return; // Usuário cancelou o compartilhamento.
+        console.error("Falha ao compartilhar PDF:", erro && erro.name);
+        alert("Não foi possível gerar ou compartilhar o PDF. Os campos foram preservados.");
       } finally {
         botao.disabled = false;
         botao.textContent = "GERAR PDF E COMPARTILHAR WHATSAPP";
