@@ -15,7 +15,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
   <!-- Biblioteca PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+    onload="if(window.atualizarDisponibilidadePdf)atualizarDisponibilidadePdf()"
+    onerror="if(window.atualizarDisponibilidadePdf)atualizarDisponibilidadePdf()"></script>
 
   <style>
     :root {
@@ -334,7 +336,8 @@
       .actions,
       .small-warning,
       .logo-buttons,
-      .file-buttons {
+      .file-buttons,
+      [data-app-ui] {
         display: none !important;
       }
 
@@ -358,6 +361,7 @@
     <header>
       <div class="logo-area">
         <img id="logoEmpresa" src="logo-arua.png" alt="Logomarca Aruá" />
+        <span id="logoFallback" style="display:none;font-weight:bold;color:#1f4e79;font-size:28px">ARUÁ</span>
 
         <div class="logo-buttons">
           <button type="button" class="btn-logo" onclick="selecionarLogo()">ALTERAR LOGO</button>
@@ -370,6 +374,16 @@
       <h1>Controle de Entrada - Portaria Aruá 🚗📝</h1>
       <div class="date-line">Data do registro: <span id="dataAtual"></span></div>
     </header>
+
+    <details data-app-ui style="background:#f8fafc;border:1px solid #d8dee4;border-radius:8px;padding:12px;margin-bottom:16px">
+      <summary style="cursor:pointer;font-weight:bold">Como usar a Portaria Aruá</summary>
+      <p>Preencha os campos obrigatórios, anexe as fotos necessárias e registre quem autorizou a entrada.
+        Use <strong>BAIXAR PDF</strong> para guardar o relatório antes de limpar a tela. A opção
+        <strong>IMPRIMIR / SALVAR PDF</strong> serve de contingência quando a biblioteca de PDF não carregar.
+        No celular compatível, o botão de compartilhamento pode anexar o próprio arquivo.</p>
+      <p><strong>Atenção:</strong> este HTML não possui banco de dados nem histórico de registros.
+        Guarde os PDFs em local corporativo autorizado. Não confunda o teste de preenchimento com o salvamento do registro.</p>
+    </details>
 
     <section class="lgpd-box">
       <strong>🔒 AVISO DE PROTEÇÃO DE DADOS PESSOAIS — LGPD, Lei nº 13.709/2018</strong>
@@ -649,8 +663,19 @@
   </main>
 
   <script>
-    // Permitir que o cadastro opere mesmo se a biblioteca externa estiver indisponível.
-    const jsPDF = window.jspdf && typeof window.jspdf.jsPDF === "function" ? window.jspdf.jsPDF : null;
+    // Biblioteca carregada de modo assíncrono: o formulário não depende do CDN.
+    function obterJsPDF() {
+      return window.jspdf && typeof window.jspdf.jsPDF === "function" ? window.jspdf.jsPDF : null;
+    }
+    function atualizarDisponibilidadePdf() {
+      const estadoPdf = document.getElementById("estadoPdf");
+      if (estadoPdf) {
+        estadoPdf.textContent = obterJsPDF()
+          ? "PDF disponível. Baixe e confira o arquivo antes de limpar o formulário."
+          : "Biblioteca PDF não carregada. A impressão do navegador continua disponível.";
+      }
+    }
+    window.addEventListener("load", atualizarDisponibilidadePdf);
 
     let eventoInstalacao = null;
     let logoAtualBase64 = null;
@@ -710,18 +735,27 @@
       }
     }
 
-    window.addEventListener("load", function () {
+    window.addEventListener("DOMContentLoaded", function () {
+      const logo = document.getElementById("logoEmpresa");
+      const fallback = document.getElementById("logoFallback");
+      logo.addEventListener("error", function () {
+        logo.style.display = "none";
+        fallback.style.display = "inline-block";
+      });
+      logo.addEventListener("load", function () {
+        logo.style.display = "block";
+        fallback.style.display = "none";
+      });
+      if (logo.complete && logo.naturalWidth === 0) {
+        logo.style.display = "none";
+        fallback.style.display = "inline-block";
+      }
       document.getElementById("dataAtual").textContent = formatarDataExtensoBR(new Date());
 
       preencherDataHoraAtual();
       carregarLogoSalva();
       registrarServiceWorker();
-      const estadoPdf = document.getElementById("estadoPdf");
-      if (estadoPdf) {
-        estadoPdf.textContent = jsPDF
-          ? "PDF disponível. Baixe e confira o arquivo antes de limpar o formulário."
-          : "Biblioteca PDF não carregou. Use a impressão do navegador como contingência.";
-      }
+      atualizarDisponibilidadePdf();
       // Pressionar Enter nunca pode apagar acidentalmente os campos preenchidos.
       document.getElementById("formControle").addEventListener("submit", function (evento) {
         evento.preventDefault();
@@ -914,7 +948,7 @@
 
     function baixarPdfLocal() {
       if (!validarPreenchimento(true)) return;
-      if (!jsPDF) {
+      if (!obterJsPDF()) {
         alert("A biblioteca PDF está indisponível. Utilize IMPRIMIR / SALVAR PDF.");
         return;
       }
@@ -1035,8 +1069,9 @@
     }
 
     function gerarPDF() {
-      if (!jsPDF) throw new Error("Biblioteca jsPDF não carregada");
-      const doc = new jsPDF("p", "mm", "a4");
+      const construtor = obterJsPDF();
+      if (!construtor) throw new Error("Biblioteca jsPDF não carregada");
+      const doc = new construtor("p", "mm", "a4");
 
       let y = 15;
 
@@ -1156,7 +1191,7 @@
 
     async function gerarPdfECompartilhar() {
       if (!validarPreenchimento(true)) return;
-      if (!jsPDF) {
+      if (!obterJsPDF()) {
         alert("Biblioteca de PDF indisponível. O cadastro continua funcionando. Use IMPRIMIR / SALVAR PDF como contingência; a formatação pode ser diferente.");
         return;
       }
