@@ -1,0 +1,19 @@
+{
+  "name": "Portaria Aruá — Controle de Acesso",
+  "short_name": "Portaria Aruá",
+  "description": "Formulário local de registro de entrada. Os dados não são sincronizados.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef2f7",
+  "theme_color": "#1f4e79",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "./icon-portaria.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
