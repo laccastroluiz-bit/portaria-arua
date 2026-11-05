@@ -635,12 +635,13 @@
       O tratamento dos dados deve observar a LGPD, políticas internas de segurança da informação
       e restrição de acesso apenas a pessoas autorizadas.
 
-      <div class="created-by">Criado por Luiz Alberto Castro V2</div>
+      <div class="created-by">Criado por Eng. Luiz Alberto Castro</div>
     </div>
   </main>
 
   <script>
-    const { jsPDF } = window.jspdf;
+    // Permitir que o cadastro opere mesmo se a biblioteca externa estiver indisponível.
+    const jsPDF = window.jspdf && typeof window.jspdf.jsPDF === "function" ? window.jspdf.jsPDF : null;
 
     let eventoInstalacao = null;
     let logoAtualBase64 = null;
@@ -987,6 +988,7 @@
     }
 
     function gerarPDF() {
+      if (!jsPDF) throw new Error("Biblioteca jsPDF não carregada");
       const doc = new jsPDF("p", "mm", "a4");
 
       let y = 15;
@@ -1093,7 +1095,7 @@
           287
         );
         doc.text(`Página ${i} de ${totalPaginas}`, 170, 287);
-        doc.text("Criado por Luiz Alberto Castro V2", 155, 292);
+        doc.text("Criado por Eng. Luiz Alberto Castro", 155, 292);
       }
 
       return doc;
@@ -1101,6 +1103,10 @@
 
     async function gerarPdfECompartilhar() {
       if (!validarPreenchimento()) return;
+      if (!jsPDF) {
+        alert("Biblioteca de PDF indisponível. O cadastro continua funcionando. Use IMPRIMIR / SALVAR PDF como contingência; a formatação pode ser diferente.");
+        return;
+      }
 
       const botao = document.getElementById("btnCompartilhar");
       botao.disabled = true;
