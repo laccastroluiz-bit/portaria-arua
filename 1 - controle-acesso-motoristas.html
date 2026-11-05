@@ -15,7 +15,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
   <!-- Biblioteca PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+    onload="if(window.atualizarDisponibilidadePdf)atualizarDisponibilidadePdf()"
+    onerror="if(window.atualizarDisponibilidadePdf)atualizarDisponibilidadePdf()"></script>
 
   <style>
     :root {
@@ -291,6 +293,12 @@
       display: none;
     }
 
+    /* Rolagem normal e dimensões estáveis no celular, sem alterar layout de impressão. */
+    html { min-height: 100%; overflow-x: hidden; }
+    body { min-height: 100%; overflow-x: hidden; overflow-y: auto; }
+    .field, .file-box { min-width: 0; }
+    input, select, textarea { max-width: 100%; }
+
     @media (max-width: 720px) {
       .grid {
         grid-template-columns: 1fr;
@@ -328,7 +336,8 @@
       .actions,
       .small-warning,
       .logo-buttons,
-      .file-buttons {
+      .file-buttons,
+      [data-app-ui] {
         display: none !important;
       }
 
@@ -352,6 +361,7 @@
     <header>
       <div class="logo-area">
         <img id="logoEmpresa" src="logo-arua.png" alt="Logomarca Aruá" />
+        <span id="logoFallback" style="display:none;font-weight:bold;color:#1f4e79;font-size:28px">ARUÁ</span>
 
         <div class="logo-buttons">
           <button type="button" class="btn-logo" onclick="selecionarLogo()">ALTERAR LOGO</button>
@@ -364,6 +374,16 @@
       <h1>Controle de Entrada - Portaria Aruá 🚗📝</h1>
       <div class="date-line">Data do registro: <span id="dataAtual"></span></div>
     </header>
+
+    <details data-app-ui style="background:#f8fafc;border:1px solid #d8dee4;border-radius:8px;padding:12px;margin-bottom:16px">
+      <summary style="cursor:pointer;font-weight:bold">Como usar a Portaria Aruá</summary>
+      <p>Preencha os campos obrigatórios, anexe as fotos necessárias e registre quem autorizou a entrada.
+        Use <strong>BAIXAR PDF</strong> para guardar o relatório antes de limpar a tela. A opção
+        <strong>IMPRIMIR / SALVAR PDF</strong> serve de contingência quando a biblioteca de PDF não carregar.
+        No celular compatível, o botão de compartilhamento pode anexar o próprio arquivo.</p>
+      <p><strong>Atenção:</strong> este HTML não possui banco de dados nem histórico de registros.
+        Guarde os PDFs em local corporativo autorizado. Não confunda o teste de preenchimento com o salvamento do registro.</p>
+    </details>
 
     <section class="lgpd-box">
       <strong>🔒 AVISO DE PROTEÇÃO DE DADOS PESSOAIS — LGPD, Lei nº 13.709/2018</strong>
@@ -619,15 +639,18 @@
       <div class="actions">
         <button type="button" id="btnInstalarApp" class="btn-install" onclick="instalarApp()">INSTALAR APP</button>
         <button type="button" class="btn-primary" onclick="validarPreenchimento()">VALIDAR PREENCHIMENTO</button>
-        <button type="button" class="btn-secondary" onclick="window.print()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" class="btn-secondary" onclick="imprimirRegistro()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" class="btn-primary" id="btnBaixarPDF" onclick="baixarPdfLocal()">BAIXAR PDF</button>
         <button type="button" id="btnCompartilhar" class="btn-whatsapp" onclick="gerarPdfECompartilhar()">GERAR PDF E COMPARTILHAR WHATSAPP</button>
         <button type="button" class="btn-danger" onclick="limparFormulario()">LIMPAR FORMULÁRIO</button>
       </div>
 
       <div class="small-warning">
-        Atenção: o botão <strong>VALIDAR PREENCHIMENTO</strong> não salva dados.
-        O registro formal é o PDF gerado e salvo/compartilhado.
+        Atenção: <strong>VALIDAR PREENCHIMENTO</strong> não salva dados.
+        O registro formal depende de gerar e guardar o PDF.
+        O navegador não mantém um histórico de registros neste HTML.
       </div>
+      <div id="estadoPdf" class="small-warning" role="status" aria-live="polite"></div>
     </form>
 
     <div class="footer-note">
@@ -635,12 +658,24 @@
       O tratamento dos dados deve observar a LGPD, políticas internas de segurança da informação
       e restrição de acesso apenas a pessoas autorizadas.
 
-      <div class="created-by">Criado por Luiz Alberto Castro V2</div>
+      <div class="created-by">Criado por Eng. Luiz Alberto Castro</div>
     </div>
   </main>
 
   <script>
-    const { jsPDF } = window.jspdf;
+    // Biblioteca carregada de modo assíncrono: o formulário não depende do CDN.
+    function obterJsPDF() {
+      return window.jspdf && typeof window.jspdf.jsPDF === "function" ? window.jspdf.jsPDF : null;
+    }
+    function atualizarDisponibilidadePdf() {
+      const estadoPdf = document.getElementById("estadoPdf");
+      if (estadoPdf) {
+        estadoPdf.textContent = obterJsPDF()
+          ? "PDF disponível. Baixe e confira o arquivo antes de limpar o formulário."
+          : "Biblioteca PDF não carregada. A impressão do navegador continua disponível.";
+      }
+    }
+    window.addEventListener("load", atualizarDisponibilidadePdf);
 
     let eventoInstalacao = null;
     let logoAtualBase64 = null;
@@ -700,12 +735,32 @@
       }
     }
 
-    window.addEventListener("load", function () {
+    window.addEventListener("DOMContentLoaded", function () {
+      const logo = document.getElementById("logoEmpresa");
+      const fallback = document.getElementById("logoFallback");
+      logo.addEventListener("error", function () {
+        logo.style.display = "none";
+        fallback.style.display = "inline-block";
+      });
+      logo.addEventListener("load", function () {
+        logo.style.display = "block";
+        fallback.style.display = "none";
+      });
+      if (logo.complete && logo.naturalWidth === 0) {
+        logo.style.display = "none";
+        fallback.style.display = "inline-block";
+      }
       document.getElementById("dataAtual").textContent = formatarDataExtensoBR(new Date());
 
       preencherDataHoraAtual();
       carregarLogoSalva();
       registrarServiceWorker();
+      atualizarDisponibilidadePdf();
+      // Pressionar Enter nunca pode apagar acidentalmente os campos preenchidos.
+      document.getElementById("formControle").addEventListener("submit", function (evento) {
+        evento.preventDefault();
+        validarPreenchimento();
+      });
 
       configurarPreview("fotoPessoaCamera", "previewPessoa", "pessoa");
       configurarPreview("fotoPessoaArquivo", "previewPessoa", "pessoa");
@@ -771,8 +826,13 @@
 
       if (!arquivo) return;
 
-      if (!arquivo.type.startsWith("image/")) {
-        alert("Selecione apenas arquivo de imagem.");
+      if (!["image/png", "image/jpeg", "image/webp"].includes(arquivo.type)) {
+        alert("Logo não suportada. Use PNG, JPG ou WEBP.");
+        input.value = "";
+        return;
+      }
+      if (arquivo.size > 2 * 1024 * 1024) {
+        alert("Logo acima do limite de 2 MB. Utilize uma imagem menor.");
         input.value = "";
         return;
       }
@@ -782,23 +842,35 @@
       reader.onload = function (e) {
         logoAtualBase64 = e.target.result;
         document.getElementById("logoEmpresa").src = logoAtualBase64;
-        localStorage.setItem("logoArua", logoAtualBase64);
+        try {
+          localStorage.setItem("logoArua", logoAtualBase64);
+        } catch (erro) {
+          alert("Logo aplicada nesta sessão, mas o navegador não permitiu salvá-la.");
+        }
       };
 
       reader.readAsDataURL(arquivo);
     }
 
     function carregarLogoSalva() {
-      const logoSalva = localStorage.getItem("logoArua");
-
-      if (logoSalva) {
-        logoAtualBase64 = logoSalva;
-        document.getElementById("logoEmpresa").src = logoSalva;
+      // Acesso via file:// ou política restritiva pode bloquear localStorage.
+      try {
+        const logoSalva = localStorage.getItem("logoArua");
+        if (logoSalva) {
+          logoAtualBase64 = logoSalva;
+          document.getElementById("logoEmpresa").src = logoSalva;
+        }
+      } catch (erro) {
+        console.warn("Logo não recuperada; demais funções continuam disponíveis.");
       }
     }
 
     function restaurarLogoPadrao() {
-      localStorage.removeItem("logoArua");
+      try {
+        localStorage.removeItem("logoArua");
+      } catch (erro) {
+        console.warn("Armazenamento de logo indisponível.");
+      }
       logoAtualBase64 = null;
       document.getElementById("logoEmpresa").src = "logo-arua.png";
       alert("Logo padrão restaurada.");
@@ -874,7 +946,7 @@
       return elemento ? elemento.value.trim() : "";
     }
 
-    function validarPreenchimento() {
+    function validarPreenchimento(silencioso) {
       const form = document.getElementById("formControle");
 
       if (!form.checkValidity()) {
@@ -882,8 +954,32 @@
         return false;
       }
 
-      alert("Preenchimento validado com sucesso.");
+      if (!silencioso) alert("Preenchimento validado com sucesso.");
       return true;
+    }
+
+    function imprimirRegistro() {
+      if (!validarPreenchimento(true)) return;
+      window.print();
+    }
+
+    function baixarPdfLocal() {
+      if (!validarPreenchimento(true)) return;
+      if (!obterJsPDF()) {
+        alert("A biblioteca PDF está indisponível. Utilize IMPRIMIR / SALVAR PDF.");
+        return;
+      }
+      const botao = document.getElementById("btnBaixarPDF");
+      botao.disabled = true;
+      try {
+        const nome = "controle-entrada-" + (valor("placa") || "veiculo") + "-" + Date.now() + ".pdf";
+        gerarPDF().save(nome);
+      } catch (erro) {
+        console.error("Falha na geração local de PDF:", erro && erro.name);
+        alert("Não foi possível gerar o PDF. Nenhum dado foi apagado. Tente imprimir.");
+      } finally {
+        botao.disabled = false;
+      }
     }
 
     function limparFormulario() {
@@ -939,55 +1035,58 @@
     }
 
     function adicionarTexto(doc, titulo, texto, x, y) {
-      doc.setFont("helvetica", "bold");
-      doc.text(titulo, x, y);
-
+      // Valores curtos ocupam uma linha; observações longas paginam sem cortes.
+      let cursor = novaPaginaSeNecessario(doc, y, 260);
       doc.setFont("helvetica", "normal");
-      const linhas = doc.splitTextToSize(texto || "-", 170);
-      doc.text(linhas, x, y + 6);
-
-      return y + 6 + linhas.length * 5;
+      const linhas = doc.splitTextToSize(titulo + " " + (texto || "-"), 170);
+      for (const linha of linhas) {
+        if (cursor > 267) {
+          doc.addPage();
+          cursor = 20;
+          doc.setFont("helvetica", "normal");
+        }
+        doc.text(linha, x, cursor);
+        cursor += 5;
+      }
+      return cursor + 1;
     }
 
-    function novaPaginaSeNecessario(doc, y, margemInferior = 270) {
+    function novaPaginaSeNecessario(doc, y, margemInferior = 255) {
       if (y > margemInferior) {
         doc.addPage();
         return 20;
       }
-
       return y;
     }
 
-    function adicionarImagemPDF(doc, titulo, imagemBase64, y) {
-      y = novaPaginaSeNecessario(doc, y, 220);
-
+    // Duas fotografias por linha, sem distorcer documentos e placas.
+    function adicionarFotoCelula(doc, titulo, imagemBase64, x, y) {
+      const largura = 82, altura = 54, topo = y + 11;
       doc.setFont("helvetica", "bold");
-      doc.text(titulo, 15, y);
-      y += 5;
-
+      doc.setFontSize(9);
+      doc.text(doc.splitTextToSize(titulo, largura), x, y);
+      doc.setFont("helvetica", "normal");
       if (!imagemBase64) {
-        doc.setFont("helvetica", "normal");
-        doc.text("Imagem não anexada.", 15, y + 5);
-        return y + 15;
+        doc.text("Imagem não anexada.", x, topo + 8);
+        return;
       }
-
       try {
-        doc.addImage(imagemBase64, "JPEG", 15, y, 80, 55);
+        const propriedades = doc.getImageProperties(imagemBase64);
+        if (!propriedades.width || !propriedades.height) throw new Error("Imagem sem dimensões");
+        const escala = Math.min(largura / propriedades.width, altura / propriedades.height);
+        const w = propriedades.width * escala, h = propriedades.height * escala;
+        const formato = /^data:image\/png/i.test(imagemBase64) ? "PNG" : "JPEG";
+        doc.addImage(imagemBase64, formato, x + (largura - w) / 2,
+          topo + (altura - h) / 2, w, h);
       } catch (erro) {
-        try {
-          doc.addImage(imagemBase64, "PNG", 15, y, 80, 55);
-        } catch (erroInterno) {
-          doc.setFont("helvetica", "normal");
-          doc.text("Não foi possível inserir a imagem no PDF.", 15, y + 5);
-          return y + 15;
-        }
+        doc.text("Imagem não suportada. Confira o anexo.", x, topo + 8);
       }
-
-      return y + 65;
     }
 
     function gerarPDF() {
-      const doc = new jsPDF("p", "mm", "a4");
+      const construtor = obterJsPDF();
+      if (!construtor) throw new Error("Biblioteca jsPDF não carregada");
+      const doc = new construtor("p", "mm", "a4");
 
       let y = 15;
 
@@ -1001,6 +1100,12 @@
       doc.setFontSize(10);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 15, y);
 
+      y += 7;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text("DADOS PESSOAIS — CONTROLE DE ACESSO: acesso restrito ao pessoal autorizado.", 15, y);
+      y += 5;
+      doc.text("Armazenamento, compartilhamento e retenção conforme política interna e LGPD.", 15, y);
       y += 10;
 
       doc.setDrawColor(31, 78, 121);
@@ -1074,12 +1179,18 @@
 
       y += 10;
 
-      y = adicionarImagemPDF(doc, "Foto do Motorista / Visitante", fotos.pessoa, y);
-      y = adicionarImagemPDF(doc, "Foto do Documento / CNH", fotos.documento, y);
-      y = adicionarImagemPDF(doc, "Foto da Placa do Veículo", fotos.placa, y);
-      y = adicionarImagemPDF(doc, "Foto do Tipo de Veículo / Característica", fotos.tipoVeiculo, y);
-      y = adicionarImagemPDF(doc, "Foto do CRLV / Documento do Veículo", fotos.crlv, y);
-      y = adicionarImagemPDF(doc, "Foto Geral do Veículo - Visão Completa", fotos.caminhao, y);
+      const anexos = [
+        ["Foto do Motorista / Visitante", fotos.pessoa],
+        ["Foto do Documento / CNH", fotos.documento],
+        ["Foto da Placa do Veículo", fotos.placa],
+        ["Foto do Tipo de Veículo / Característica", fotos.tipoVeiculo],
+        ["Foto do CRLV / Documento do Veículo", fotos.crlv],
+        ["Foto Geral do Veículo - Visão Completa", fotos.caminhao]
+      ];
+      anexos.forEach(function (anexo, i) {
+        const coluna = i % 2, linha = Math.floor(i / 2);
+        adicionarFotoCelula(doc, anexo[0], anexo[1], coluna === 0 ? 15 : 111, 25 + linha * 77);
+      });
 
       const totalPaginas = doc.internal.getNumberOfPages();
 
@@ -1093,14 +1204,18 @@
           287
         );
         doc.text(`Página ${i} de ${totalPaginas}`, 170, 287);
-        doc.text("Criado por Luiz Alberto Castro V2", 155, 292);
+        doc.text("Criado por Eng. Luiz Alberto Castro", 155, 292);
       }
 
       return doc;
     }
 
     async function gerarPdfECompartilhar() {
-      if (!validarPreenchimento()) return;
+      if (!validarPreenchimento(true)) return;
+      if (!obterJsPDF()) {
+        alert("Biblioteca de PDF indisponível. O cadastro continua funcionando. Use IMPRIMIR / SALVAR PDF como contingência; a formatação pode ser diferente.");
+        return;
+      }
 
       const botao = document.getElementById("btnCompartilhar");
       botao.disabled = true;
@@ -1113,33 +1228,37 @@
         const nomeArquivo = `controle-entrada-${placa}-${Date.now()}.pdf`;
         const pdfBlob = doc.output("blob");
 
-        const arquivo = new File([pdfBlob], nomeArquivo, {
-          type: "application/pdf"
-        });
-
-        if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
-          await navigator.share({
-            title: "Controle de Entrada - Portaria Aruá",
-            text: "Segue o PDF do controle de entrada.",
-            files: [arquivo]
-          });
-        } else {
+        // Em navegadores antigos, File e Web Share podem não existir.
+        let compartilhado = false;
+        if (typeof File === "function" && typeof navigator.canShare === "function"
+            && typeof navigator.share === "function") {
+          const arquivo = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+          if (navigator.canShare({ files: [arquivo] })) {
+            await navigator.share({
+              title: "Controle de Entrada - Portaria Aruá",
+              text: "Segue o PDF do controle de entrada.",
+              files: [arquivo]
+            });
+            compartilhado = true;
+          }
+        }
+        if (!compartilhado) {
           doc.save(nomeArquivo);
 
+          // Não incluir nome, documento ou placa na URL de um terceiro.
           const mensagem = encodeURIComponent(
-            `Controle de Entrada - Portaria Aruá\n\n` +
-            `Motorista: ${valor("nomeMotorista")}\n` +
-            `Empresa: ${valor("empresa")}\n` +
-            `Placa: ${valor("placa")}\n` +
-            `Status: ${valor("statusAprovacao")}\n\n` +
-            `O PDF foi baixado. Anexe manualmente no WhatsApp.`
+            "Controle de Entrada - Portaria Aruá\n" +
+            "PDF baixado. Anexe manualmente o arquivo somente ao destinatário autorizado."
           );
-
-          window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+          const janela = window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+          if (!janela) {
+            alert("PDF baixado. Abra o WhatsApp e anexe manualmente o documento ao destinatário autorizado.");
+          }
         }
       } catch (erro) {
-        console.error(erro);
-        alert("Erro ao gerar ou compartilhar o PDF.");
+        if (erro && erro.name === "AbortError") return; // Usuário cancelou o compartilhamento.
+        console.error("Falha ao compartilhar PDF:", erro && erro.name);
+        alert("Não foi possível gerar ou compartilhar o PDF. Os campos foram preservados.");
       } finally {
         botao.disabled = false;
         botao.textContent = "GERAR PDF E COMPARTILHAR WHATSAPP";
