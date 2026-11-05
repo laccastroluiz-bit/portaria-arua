@@ -826,8 +826,13 @@
 
       if (!arquivo) return;
 
-      if (!arquivo.type.startsWith("image/")) {
-        alert("Selecione apenas arquivo de imagem.");
+      if (!["image/png", "image/jpeg", "image/webp"].includes(arquivo.type)) {
+        alert("Logo não suportada. Use PNG, JPG ou WEBP.");
+        input.value = "";
+        return;
+      }
+      if (arquivo.size > 2 * 1024 * 1024) {
+        alert("Logo acima do limite de 2 MB. Utilize uma imagem menor.");
         input.value = "";
         return;
       }
@@ -837,23 +842,35 @@
       reader.onload = function (e) {
         logoAtualBase64 = e.target.result;
         document.getElementById("logoEmpresa").src = logoAtualBase64;
-        localStorage.setItem("logoArua", logoAtualBase64);
+        try {
+          localStorage.setItem("logoArua", logoAtualBase64);
+        } catch (erro) {
+          alert("Logo aplicada nesta sessão, mas o navegador não permitiu salvá-la.");
+        }
       };
 
       reader.readAsDataURL(arquivo);
     }
 
     function carregarLogoSalva() {
-      const logoSalva = localStorage.getItem("logoArua");
-
-      if (logoSalva) {
-        logoAtualBase64 = logoSalva;
-        document.getElementById("logoEmpresa").src = logoSalva;
+      // Acesso via file:// ou política restritiva pode bloquear localStorage.
+      try {
+        const logoSalva = localStorage.getItem("logoArua");
+        if (logoSalva) {
+          logoAtualBase64 = logoSalva;
+          document.getElementById("logoEmpresa").src = logoSalva;
+        }
+      } catch (erro) {
+        console.warn("Logo não recuperada; demais funções continuam disponíveis.");
       }
     }
 
     function restaurarLogoPadrao() {
-      localStorage.removeItem("logoArua");
+      try {
+        localStorage.removeItem("logoArua");
+      } catch (erro) {
+        console.warn("Armazenamento de logo indisponível.");
+      }
       logoAtualBase64 = null;
       document.getElementById("logoEmpresa").src = "logo-arua.png";
       alert("Logo padrão restaurada.");
@@ -1085,6 +1102,12 @@
       doc.setFontSize(10);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 15, y);
 
+      y += 7;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text("DADOS PESSOAIS — CONTROLE DE ACESSO: acesso restrito ao pessoal autorizado.", 15, y);
+      y += 5;
+      doc.text("Armazenamento, compartilhamento e retenção conforme política interna e LGPD.", 15, y);
       y += 10;
 
       doc.setDrawColor(31, 78, 121);
@@ -1224,16 +1247,15 @@
         if (!compartilhado) {
           doc.save(nomeArquivo);
 
+          // Não incluir nome, documento ou placa na URL de um terceiro.
           const mensagem = encodeURIComponent(
-            `Controle de Entrada - Portaria Aruá\n\n` +
-            `Motorista: ${valor("nomeMotorista")}\n` +
-            `Empresa: ${valor("empresa")}\n` +
-            `Placa: ${valor("placa")}\n` +
-            `Status: ${valor("statusAprovacao")}\n\n` +
-            `O PDF foi baixado. Anexe manualmente no WhatsApp.`
+            "Controle de Entrada - Portaria Aruá\n" +
+            "PDF baixado. Anexe manualmente o arquivo somente ao destinatário autorizado."
           );
-
-          window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+          const janela = window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+          if (!janela) {
+            alert("PDF baixado. Abra o WhatsApp e anexe manualmente o documento ao destinatário autorizado.");
+          }
         }
       } catch (erro) {
         if (erro && erro.name === "AbortError") return; // Usuário cancelou o compartilhamento.
