@@ -1035,12 +1035,10 @@
     }
 
     function adicionarTexto(doc, titulo, texto, x, y) {
-      let cursor = novaPaginaSeNecessario(doc, y, 255);
-      doc.setFont("helvetica", "bold");
-      doc.text(titulo, x, cursor);
-      cursor += 6;
+      // Valores curtos ocupam uma linha; observações longas paginam sem cortes.
+      let cursor = novaPaginaSeNecessario(doc, y, 260);
       doc.setFont("helvetica", "normal");
-      const linhas = doc.splitTextToSize(texto || "-", 170);
+      const linhas = doc.splitTextToSize(titulo + " " + (texto || "-"), 170);
       for (const linha of linhas) {
         if (cursor > 267) {
           doc.addPage();
@@ -1050,7 +1048,7 @@
         doc.text(linha, x, cursor);
         cursor += 5;
       }
-      return cursor;
+      return cursor + 1;
     }
 
     function novaPaginaSeNecessario(doc, y, margemInferior = 255) {
