@@ -1,0 +1,18 @@
+name: LAC Portaria - validate patched HTML CDN guard
+on:
+  push:
+    branches: ['audit/portaria-cdn-guard-patched-20261122']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unit tests for vulnerable and patched scripts
+        run: python3 -m unittest discover -s security_checks/tests -p 'test_html_cdns.py' -v
+      - name: Scan actual patched Portaria HTML
+        run: python3 security_checks/check_html_cdns.py .
