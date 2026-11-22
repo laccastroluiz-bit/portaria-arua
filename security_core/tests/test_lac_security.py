@@ -156,6 +156,31 @@ class TestScanner(unittest.TestCase):
         one, two = core.audit(self.root), core.audit(self.root)
         self.assertEqual(one["findings"][0]["fingerprint"], two["findings"][0]["fingerprint"])
 
+    def test_raw_password_storage_high(self):
+        self.write("auth.ts", 'localStorage.setItem(`user_password_${id}`, password);\n')
+        findings = core.audit(self.root)["findings"]
+        self.assertTrue(any(x["rule"] == "BROWSER_RAW_CREDENTIAL" and x["severity"] == "HIGH" for x in findings))
+
+    def test_raw_token_storage_high(self):
+        self.write("auth.js", 'sessionStorage.setItem("token", accessToken);\n')
+        self.assertIn("BROWSER_RAW_CREDENTIAL", self.rules())
+
+    def test_derived_value_not_raw(self):
+        self.write("auth.js", 'localStorage.setItem("verifier", encoded);\n')
+        self.assertNotIn("BROWSER_RAW_CREDENTIAL", self.rules())
+
+    def test_auth_state_read(self):
+        self.write("auth.ts", 'const state = localStorage.getItem("current_user");\n')
+        self.assertIn("BROWSER_AUTH_STATE", self.rules())
+
+    def test_theme_read_not_auth(self):
+        self.write("theme.js", 'const theme = localStorage.getItem("theme");\n')
+        self.assertNotIn("BROWSER_AUTH_STATE", self.rules())
+
+    def test_empty_html_reset_not_sink(self):
+        self.write("preview.js", 'preview.innerHTML = "";\n')
+        self.assertNotIn("DOM_HTML_SINK", self.rules())
+
 
 if __name__ == "__main__":
     unittest.main()
