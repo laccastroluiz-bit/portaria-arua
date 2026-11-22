@@ -1,0 +1,15 @@
+# LAC Security: advisory-driven PRs, never automatic deployment.
+# Version monitoring starts only after this config reaches the default branch.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "09:29"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 4
+    groups:
+      compatible-version-updates:
+        applies-to: "version-updates"
+        update-types: ["minor", "patch"]
