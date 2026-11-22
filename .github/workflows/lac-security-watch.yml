@@ -1,0 +1,94 @@
+name: LAC Security Watch - read only
+on:
+  push:
+    branches: [main, security/dependabot-monitoring-20261122]
+    paths:
+      - ".github/workflows/lac-security-watch.yml"
+      - ".github/dependabot.yml"
+      - "package*.json"
+      - "scheduler/package*.json"
+      - "requirements*.txt"
+      - "**/*.js"
+      - "**/*.ts"
+      - "**/*.py"
+      - "**/*.html"
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 11 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lac-security-watch-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Git history secrets - Gitleaks
+        shell: bash
+        run: |
+          set +e
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP:/report" \
+            ghcr.io/gitleaks/gitleaks:v8.24.2@sha256:58c180146f495109b851e82278c9cf43d1055b622287a4b6a464087f0c0dbf43 \
+            git --redact=100 --report-format json --report-path /report/lac-gitleaks.json /repo >/dev/null 2>&1
+          result=$?
+          set -e
+          if [[ "$result" -gt 1 ]]; then
+            echo "::error::LAC secret scanning failed to complete; release not approved."
+            exit 2
+          fi
+          if [[ "$result" -eq 1 ]]; then
+            python - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"lac-gitleaks.json"
+          try:
+              d=json.loads(p.read_text())
+              count=len(d) if isinstance(d,list) else "unknown"
+          except Exception:
+              count="unknown"
+          print(f"::error::LAC potential secrets found: {count}. Review privately; never print matching values.")
+          PY
+            exit 1
+          fi
+          echo "LAC_GITLEAKS_CLEAR"
+      - name: NPM production dependency advisories - lockfile only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in . scheduler; do
+            if [[ ! -f "$path/package-lock.json" ]]; then continue; fi
+            output="$RUNNER_TEMP/lac-npm-$(echo "$path" | tr '/' '_').json"
+            (cd "$path" && npm audit --package-lock-only --omit=dev --json) > "$output" || true
+            node - "$output" "$path" <<'JS'
+          const fs=require("node:fs");
+          const file=process.argv[2],name=process.argv[3];
+          let d;
+          try{d=JSON.parse(fs.readFileSync(file,"utf8"))}catch{throw Error("npm advisory scan output unavailable: "+name)}
+          if(d.error || !d.metadata?.vulnerabilities || typeof d.metadata.vulnerabilities.high!=="number")
+            throw Error("npm advisory scan incomplete: "+name);
+          const v=d.metadata.vulnerabilities;
+          console.log("LAC_NPM_AUDIT",JSON.stringify({directory:name,critical:v.critical,high:v.high,moderate:v.moderate}));
+          if(v.high>0||v.critical>0) {
+            console.log("::error::High/critical npm advisories present in "+name+". Open a security correction PR.");
+            process.exitCode=1;
+          }
+          JS
+          done
+      - name: Summary of scanning boundaries
+        if: always()
+        run: |
+          echo "LAC Security Watch: read-only CI. Git-history secret indicators and npm dependency metadata only."
+          echo "No code execution of the application, no secret values published, no merge/deploy."
+          echo "A green check does NOT certify application runtime or authorization security."
