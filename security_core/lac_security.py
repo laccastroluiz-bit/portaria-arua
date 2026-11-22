@@ -18,7 +18,7 @@ import re
 import tarfile
 import sys
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".html", ".htm", ".json", ".yaml", ".yml", ".sh", ".ps1", ".sql"}
 SPECIAL_FILES = {"requirements.txt", "pipfile", "dockerfile", ".env", ".gitignore", "package.json", "package-lock.json", "pyproject.toml", "setup.cfg"}
@@ -107,8 +107,13 @@ def scan_text(content: str, rel: str, found: list[Finding]) -> None:
         if is_js:
             if re.search(r"\b(?:eval\s*\(|new\s+Function\s*\()", line):
                 add(found, "JS_DYNAMIC_EXEC", "HIGH", rel, lineno, "Execução dinâmica de JavaScript.", "Remover eval/Function, usar funções e parsing seguro.", "HIGH")
-            if re.search(r"\.innerHTML\s*=|\.outerHTML\s*=|document\.write\s*\(", line):
+            if re.search(r"\.innerHTML\s*=|\.outerHTML\s*=|document\.write\s*\(", line) and not re.search(r"\.(?:innerHTML|outerHTML)\s*=\s*(?:\"\"|'')\s*;?\s*$", line):
                 add(found, "DOM_HTML_SINK", "MEDIUM", rel, lineno, "Operação HTML dinâmica que requer análise de XSS.", "Preferir textContent ou sanitização confiável e validar origem dos dados.", "LOW")
+            # A direct password/token write is stronger evidence than generic browser persistence.
+            if re.search(r"\b(?:localStorage|sessionStorage)\.setItem\s*\(\s*[^,\n]+,\s*(?:password|passwd|senha|accessToken|refreshToken|authToken)\s*\)", line, re.I):
+                add(found, "BROWSER_RAW_CREDENTIAL", "HIGH", rel, lineno, "Possível credencial bruta persistida no navegador; revisar origem e transformação.", "Não persistir senhas ou tokens brutos; usar autenticação em servidor e cookies seguros, ou verificador derivado para uso estritamente local.", "HIGH")
+            if re.search(r"\b(?:localStorage|sessionStorage)\.getItem\s*\(\s*[^)]*(?:current_user|session|auth|token|password)[^)]*\)", line, re.I):
+                add(found, "BROWSER_AUTH_STATE", "MEDIUM", rel, lineno, "Estado de autenticação ou credencial lido de armazenamento manipulável pelo cliente.", "Validar identidade e autorização independentemente do armazenamento local; revisar se é apenas preferência de interface.", "MEDIUM")
             if re.search(r"\b(?:localStorage|sessionStorage)\.setItem\s*\(", line):
                 add(found, "BROWSER_STORAGE_REVIEW", "LOW", rel, lineno, "Armazenamento no navegador requer avaliação de confidencialidade e retenção.", "Não armazenar tokens/senhas; avaliar dados pessoais, limpeza e criptografia do lado servidor.", "HIGH")
     if name == "requirements.txt":
