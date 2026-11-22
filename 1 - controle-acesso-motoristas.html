@@ -351,7 +351,7 @@
   <main class="container" id="relatorioPDF">
     <header>
       <div class="logo-area">
-        <img id="logoEmpresa" src="logo-arua.png" alt="Logomarca Aruá" />
+        <img id="logoEmpresa" src="icon-portaria.svg" alt="Ícone genérico da Portaria — substitua pela logomarca Aruá" />
 
         <div class="logo-buttons">
           <button type="button" class="btn-logo" onclick="selecionarLogo()">ALTERAR LOGO</button>
@@ -817,8 +817,8 @@
     function restaurarLogoPadrao() {
       localStorage.removeItem("logoArua");
       logoAtualBase64 = null;
-      document.getElementById("logoEmpresa").src = "logo-arua.png";
-      alert("Logo padrão restaurada.");
+      document.getElementById("logoEmpresa").src = "icon-portaria.svg";
+      alert("Ícone genérico restaurado. Use ALTERAR LOGO para inserir a logomarca oficial.");
     }
 
     function abrirCamera(inputId) {

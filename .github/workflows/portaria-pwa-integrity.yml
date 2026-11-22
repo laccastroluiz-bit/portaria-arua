@@ -1,0 +1,28 @@
+name: LAC Portaria - consistencia PWA e cache restrito
+on:
+  pull_request:
+    paths:
+      - '1 - controle-acesso-motoristas.html'
+      - 'manifest.webmanifest'
+      - 'icon-portaria.svg'
+      - 'sw.js'
+      - 'tests/portaria_pwa_integrity.test.cjs'
+      - '.github/workflows/portaria-pwa-integrity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pwa-consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validar sintaxe do Service Worker
+        run: node --check sw.js
+      - name: Testar recursos PWA e política de cache
+        run: node --test tests/portaria_pwa_integrity.test.cjs
