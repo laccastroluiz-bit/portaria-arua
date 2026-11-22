@@ -1,0 +1,20 @@
+rules:
+  - id: lac-browser-raw-credential
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "LAC: potential raw credential stored in browser; use server-side authentication or an approved local verifier."
+    patterns:
+      - pattern-either:
+          - pattern: localStorage.setItem($KEY, $VALUE)
+          - pattern: sessionStorage.setItem($KEY, $VALUE)
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: "(?i)^(password|passwd|senha|accessToken|refreshToken|authToken)$"
+  - id: lac-html-assignment-review
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: "LAC: dynamic HTML assignment requires XSS review and trusted content handling."
+    patterns:
+      - pattern: $ELEMENT.innerHTML = $VALUE
+      - pattern-not: $ELEMENT.innerHTML = ""
+      - pattern-not: $ELEMENT.innerHTML = ''

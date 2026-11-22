@@ -1,0 +1,81 @@
+name: LAC Cybersecurity Suite v3 - Experimental
+on:
+  push:
+    branches:
+      - 'audit/lac-security-core-all-apps-20261121'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  core-and-secrets:
+    name: Static source, Semgrep and Git history
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout in read-only audit branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run internal regressions
+        run: python -m unittest discover -s security_core/tests -v
+      - name: Run built-in LAC scanner
+        run: python security_core/lac_security.py . --exclude 'security_core/**' --output "$RUNNER_TEMP/lac-v2" --fail-on none
+      - name: Install pinned Semgrep Community Edition
+        run: python -m pip install --disable-pip-version-check semgrep==1.186.0
+      - name: Semgrep local security rules only
+        env:
+          SEMGREP_SEND_METRICS: 'off'
+        run: |
+          semgrep scan --config security_core/rules --json --output "$RUNNER_TEMP/semgrep.json" --metrics=off . >/dev/null
+          test -s "$RUNNER_TEMP/semgrep.json"
+      - name: Scan Git history with pinned Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -v "$RUNNER_TEMP:/report" \
+            ghcr.io/gitleaks/gitleaks:v8.24.2@sha256:58c180146f495109b851e82278c9cf43d1055b622287a4b6a464087f0c0dbf43 \
+            git --redact=100 --report-format json --report-path /report/gitleaks.json /repo >/dev/null 2>&1
+          status=$?
+          set -e
+          echo "GITLEAKS_EXIT_CODE=$status" >> "$GITHUB_ENV"
+          if [[ "$status" -gt 1 ]]; then
+            echo "::error::Gitleaks had an operational error; full findings suppressed"
+            exit 2
+          fi
+          if [[ ! -s "$RUNNER_TEMP/gitleaks.json" && "$status" -eq 0 ]]; then
+            printf '[]' > "$RUNNER_TEMP/gitleaks.json"
+          fi
+          test -s "$RUNNER_TEMP/gitleaks.json"
+      - name: Gate with redacted summary
+        run: |
+          python security_core/advanced_gate.py \
+            --lac "$RUNNER_TEMP/lac-v2/report.json" \
+            --gitleaks "$RUNNER_TEMP/gitleaks.json" \
+            --semgrep "$RUNNER_TEMP/semgrep.json" \
+            --out "$RUNNER_TEMP/lac-safe-summary"
+      - name: Generate offline LAC Security Center
+        if: always()
+        run: |
+          if test -s "$RUNNER_TEMP/lac-safe-summary/summary.json"; then
+            python security_core/dashboard.py "$RUNNER_TEMP/lac-safe-summary/summary.json" --output "$RUNNER_TEMP/lac-safe-summary/dashboard.html"
+          else
+            echo "No sanitized summary available; dashboard not generated"
+          fi
+      - name: Store sanitized summary only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lac-v3-sanitized-summary
+          path: ${{ runner.temp }}/lac-safe-summary/
+          if-no-files-found: warn
+          retention-days: 7
+
