@@ -1,80 +1,52 @@
-name: LAC Portaria - jsPDF 4.2.1 SRI security patch
+name: LAC Portaria - verify jsPDF SRI and generated PDF
 on:
-  push:
-    branches: ['fix/portaria-jspdf-sri-20261122']
-    paths: ['.github/workflows/lac-portaria-jspdf-sri.yml']
+  pull_request:
+    paths:
+      - '1 - controle-acesso-motoristas.html'
+      - 'tests/portaria_browser_regression.cjs'
+      - '.github/workflows/lac-portaria-jspdf-sri.yml'
+  workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  validate-and-patch:
+  verify-jspdf:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
-      - name: Fetch pinned bundle and independent official SRI hash
+      - name: Verificar integridade CDNJS e hash do HTML sem modificar arquivos
         run: |
           set -euo pipefail
-          curl --fail --location --silent --show-error --retry 3 --max-time 45 \
-            https://api.cdnjs.com/libraries/jspdf/4.2.1 \
-            --output "$RUNNER_TEMP/jspdf-metadata.json"
-          curl --fail --location --silent --show-error --retry 3 --max-time 60 \
-            https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js \
-            --output "$RUNNER_TEMP/jspdf.umd.min.js"
+          curl --fail --location --silent --show-error --retry 2 --max-time 45 \
+            https://api.cdnjs.com/libraries/jspdf/4.2.1 --output "$RUNNER_TEMP/jspdf-meta.json"
+          curl --fail --location --silent --show-error --retry 2 --max-time 60 \
+            https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js --output "$RUNNER_TEMP/jspdf.umd.min.js"
           node - <<'JS'
           const fs=require('node:fs'),crypto=require('node:crypto');
-          const dir=process.env.RUNNER_TEMP+'/';
-          const metadata=JSON.parse(fs.readFileSync(dir+'jspdf-metadata.json','utf8'));
-          const integrity=metadata.sri?.['jspdf.umd.min.js'];
-          if(metadata.version!=='4.2.1'||!/^sha512-[A-Za-z0-9+/]+=*$/.test(integrity||''))
-            throw Error('Official CDNJS version or SRI metadata missing');
-          const bundle=fs.readFileSync(dir+'jspdf.umd.min.js');
-          if(bundle.length<100000)throw Error('Incomplete jsPDF bundle');
-          const computed='sha512-'+crypto.createHash('sha512').update(bundle).digest('base64');
-          if(computed!==integrity)throw Error('Downloaded jsPDF differs from official CDNJS SRI metadata');
-          const file='1 - controle-acesso-motoristas.html';
-          const html=fs.readFileSync(file,'utf8');
-          const old='<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>';
-          const replacement='<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js" integrity="'+integrity+'" crossorigin="anonymous"></script>';
-          if(html.split(old).length!==2)throw Error('Old dependency not found exactly once; no blind replacement');
-          const patched=html.replace(old,replacement);
-          fs.writeFileSync(file,patched,'utf8');
-          console.log('LAC_PORTARIA_SRI_VERIFIED',JSON.stringify({library:'jspdf',version:'4.2.1',htmlExternalScripts:1}));
-          JS
-      - name: Syntax and PDF-generation smoke test
-        run: |
-          set -euo pipefail
-          node --check "$RUNNER_TEMP/jspdf.umd.min.js"
-          node - <<'JS'
-          const fs=require('node:fs');
-          const {jsPDF}=require(process.env.RUNNER_TEMP+'/jspdf.umd.min.js');
-          if(typeof jsPDF!=='function')throw Error('UMD global API not available');
-          const doc=new jsPDF();
-          doc.text('LAC Portaria synthetic PDF regression',10,12);
-          const pdf=doc.output('arraybuffer');
-          if(pdf.byteLength<100 || !doc.output().startsWith('%PDF'))throw Error('PDF generation failed');
+          const meta=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/jspdf-meta.json','utf8'));
+          const official=meta.sri?.['jspdf.umd.min.js'];
+          const bytes=fs.readFileSync(process.env.RUNNER_TEMP+'/jspdf.umd.min.js');
+          const computed='sha512-'+crypto.createHash('sha512').update(bytes).digest('base64');
+          if(meta.version!=='4.2.1'||!official||official!==computed)throw Error('CDNJS SRI mismatch');
           const html=fs.readFileSync('1 - controle-acesso-motoristas.html','utf8');
-          if(/jspdf\/2\.5\.1/.test(html) || !/integrity="sha512-/.test(html))throw Error('Unpatched HTML or missing SRI');
-          const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(s=>s.trim());
-          const vm=require('node:vm');
-          for(const script of inline)new vm.Script(script,{filename:'portaria-inline.js'});
-          console.log('LAC_PORTARIA_PDF_SMOKE',pdf.byteLength,'inline_scripts',inline.length);
+          if(!html.includes('integrity="'+official+'"')||!html.includes('jspdf/4.2.1/jspdf.umd.min.js'))throw Error('HTML SRI mismatch');
+          if(/jspdf\/2\.5\.1/.test(html))throw Error('Vulnerable jsPDF version remains');
+          const {jsPDF}=require(process.env.RUNNER_TEMP+'/jspdf.umd.min.js');
+          const doc=new jsPDF();doc.text('Synthetic PDF test',10,12);
+          if(!doc.output().startsWith('%PDF'))throw Error('PDF smoke failed');
+          console.log('SRI_OK_AND_PDF_CREATED');
           JS
-      - name: Commit only patched HTML to isolated branch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Sintaxe dos scripts embutidos
         run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "fix/portaria-jspdf-sri-20261122"
-          git config user.name "LAC Security Automation"
-          git config user.email "lac-security@users.noreply.github.com"
-          git add -- "1 - controle-acesso-motoristas.html"
-          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
-          git commit -m "fix(security): update vulnerable jsPDF to SRI-locked 4.2.1"
-          BASIC="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c http.extraheader="AUTHORIZATION: basic $BASIC" push origin HEAD:refs/heads/fix/portaria-jspdf-sri-20261122
+          node - <<'JS'
+          const fs=require('node:fs'),vm=require('node:vm');
+          const html=fs.readFileSync('1 - controle-acesso-motoristas.html','utf8');
+          const inline=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m=>m[1]).filter(Boolean);
+          for(const script of inline)new vm.Script(script,{filename:'portaria-inline.js'});
+          console.log('INLINED_SCRIPT_CHECK',inline.length);
+          JS
