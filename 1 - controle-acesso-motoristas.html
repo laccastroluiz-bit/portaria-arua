@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
   <!-- Biblioteca PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js" integrity="sha512-plOdviVmws4Y3JAvbnpfKb2hVxKM1lCwsi3vmElYRj+tiDLffZ4FVUj5a8vyKJ9pIgl8JCAHEJ4D1iUKBecswg==" crossorigin="anonymous"></script>
 
   <style>
     :root {
@@ -616,10 +616,12 @@
         </div>
       </div>
 
+      <p id="pdfStatus" class="small-warning" role="status" hidden></p>
       <div class="actions">
         <button type="button" id="btnInstalarApp" class="btn-install" onclick="instalarApp()">INSTALAR APP</button>
         <button type="button" class="btn-primary" onclick="validarPreenchimento()">VALIDAR PREENCHIMENTO</button>
         <button type="button" class="btn-secondary" onclick="window.print()">IMPRIMIR / SALVAR PDF</button>
+        <button type="button" id="btnBaixarPDF" class="btn-primary" onclick="baixarPDF()">BAIXAR PDF</button>
         <button type="button" id="btnCompartilhar" class="btn-whatsapp" onclick="gerarPdfECompartilhar()">GERAR PDF E COMPARTILHAR WHATSAPP</button>
         <button type="button" class="btn-danger" onclick="limparFormulario()">LIMPAR FORMULÁRIO</button>
       </div>
@@ -640,7 +642,13 @@
   </main>
 
   <script>
-    const { jsPDF } = window.jspdf;
+    // Resolvida ao gerar o PDF: falha do CDN não bloqueia cadastro e fotos.
+    function obterBibliotecaPDF() {
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== "function") {
+        throw new Error("Biblioteca de PDF indisponível. Verifique a conexão e recarregue a página. O formulário pode ser impresso pelo navegador.");
+      }
+      return window.jspdf.jsPDF;
+    }
 
     let eventoInstalacao = null;
     let logoAtualBase64 = null;
@@ -704,6 +712,15 @@
       document.getElementById("dataAtual").textContent = formatarDataExtensoBR(new Date());
 
       preencherDataHoraAtual();
+      document.getElementById("formControle").addEventListener("submit", function (event) {
+        event.preventDefault();
+        validarPreenchimento();
+      });
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== "function") {
+        const aviso = document.getElementById("pdfStatus");
+        aviso.hidden = false;
+        aviso.textContent = "Biblioteca de PDF indisponível. Verifique a conexão e recarregue a página, ou use IMPRIMIR / SALVAR PDF. Seus campos e fotos continuam disponíveis.";
+      }
       carregarLogoSalva();
       registrarServiceWorker();
 
@@ -987,6 +1004,7 @@
     }
 
     function gerarPDF() {
+      const jsPDF = obterBibliotecaPDF();
       const doc = new jsPDF("p", "mm", "a4");
 
       let y = 15;
@@ -1099,6 +1117,15 @@
       return doc;
     }
 
+    function baixarPDF() {
+      if (!validarPreenchimento()) return;
+      try {
+        gerarPDF().save("controle-entrada-" + Date.now() + ".pdf");
+      } catch (erro) {
+        alert(erro.message || "Não foi possível gerar o PDF. Use a impressão do navegador.");
+      }
+    }
+
     async function gerarPdfECompartilhar() {
       if (!validarPreenchimento()) return;
 
@@ -1113,11 +1140,14 @@
         const nomeArquivo = `controle-entrada-${placa}-${Date.now()}.pdf`;
         const pdfBlob = doc.output("blob");
 
-        const arquivo = new File([pdfBlob], nomeArquivo, {
-          type: "application/pdf"
-        });
+        let arquivo = null;
+        let podeCompartilhar = false;
+        if (typeof File === "function" && typeof navigator.canShare === "function" && typeof navigator.share === "function") {
+          arquivo = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+          try { podeCompartilhar = navigator.canShare({ files: [arquivo] }); } catch (erro) { podeCompartilhar = false; }
+        }
 
-        if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
+        if (podeCompartilhar) {
           await navigator.share({
             title: "Controle de Entrada - Portaria Aruá",
             text: "Segue o PDF do controle de entrada.",
@@ -1127,19 +1157,14 @@
           doc.save(nomeArquivo);
 
           const mensagem = encodeURIComponent(
-            `Controle de Entrada - Portaria Aruá\n\n` +
-            `Motorista: ${valor("nomeMotorista")}\n` +
-            `Empresa: ${valor("empresa")}\n` +
-            `Placa: ${valor("placa")}\n` +
-            `Status: ${valor("statusAprovacao")}\n\n` +
-            `O PDF foi baixado. Anexe manualmente no WhatsApp.`
+`Controle de Entrada - Portaria Aruá. O PDF foi baixado. Anexe manualmente no WhatsApp somente ao destinatário autorizado.`
           );
 
-          window.open(`https://wa.me/?text=${mensagem}`, "_blank");
+          window.open(`https://wa.me/?text=${mensagem}`, "_blank", "noopener,noreferrer");
         }
       } catch (erro) {
-        console.error(erro);
-        alert("Erro ao gerar ou compartilhar o PDF.");
+        if (erro && erro.name === "AbortError") return;
+        alert(erro.message || "Erro ao gerar ou compartilhar o PDF.");
       } finally {
         botao.disabled = false;
         botao.textContent = "GERAR PDF E COMPARTILHAR WHATSAPP";
