@@ -63,6 +63,11 @@ jobs:
             exit 1
           fi
           echo "LAC_GITLEAKS_CLEAR"
+      - name: External JavaScript library security (HTML CDN)
+        if: always()
+        run: |
+          python3 -m unittest discover -s security_checks/tests -p 'test_html_cdns.py' -v
+          python3 security_checks/check_html_cdns.py .
       - name: NPM production dependency advisories - lockfile only
         shell: bash
         run: |
