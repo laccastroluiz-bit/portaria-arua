@@ -1,0 +1,40 @@
+name: LAC Security Core - All apps
+on:
+  push:
+    branches: ['audit/lac-security-core-all-apps-20261121']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate scanner
+        run: python -m unittest discover -s security_core/tests -v
+      - name: Static audit (read only)
+        run: python security_core/lac_security.py . --output "${{ runner.temp }}/lac-security-report" --exclude 'security_core/**' --fail-on none
+      - name: Summarize findings
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['RUNNER_TEMP'])/'lac-security-report/report.json').read_text())
+          print('SUMMARY',json.dumps(r['summary']))
+          print('STATUS',r['status'])
+          for f in r['findings']:
+              print(f"{f['severity']} {f['rule']} {f['path']}:{f['line']} [{f['confidence']}]")
+          print('SKIPPED',json.dumps(r['skipped_files']))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lac-security-report
+          path: ${{ runner.temp }}/lac-security-report
+          retention-days: 7
+          if-no-files-found: warn
