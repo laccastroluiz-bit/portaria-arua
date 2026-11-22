@@ -1,0 +1,49 @@
+name: LAC Security - Portaria
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 9 * * 1'
+permissions:
+  contents: read
+jobs:
+  static-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout somente leitura
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node.js LTS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validar JavaScript do service worker
+        run: node --check "file (2).js"
+      - name: Verificar links locais, arquivos PWA e bibliotecas externas
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          from urllib.parse import urlsplit, unquote
+          class Assets(HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag in ("script","link") and (a.get("src") or a.get("href")):
+                      self.links.append((tag,a.get("src") or a.get("href"),a))
+          a=Assets()
+          a.feed(Path("1 - controle-acesso-motoristas.html").read_text(encoding="utf-8"))
+          missing=[]
+          for tag,uri,attrs in a.links:
+              if urlsplit(uri).scheme in ("https","http"):
+                  if tag=="script" and not attrs.get("integrity"):
+                      print("ATENCAO: script remoto sem SRI:",urlsplit(uri).netloc)
+              elif not uri.startswith(("data:","#")) and not Path(unquote(urlsplit(uri).path)).is_file():
+                  missing.append(uri)
+          if missing:
+              print("ATENCAO: recursos locais ausentes:", ", ".join(missing))
+          else:
+              print("Referencias de recursos locais verificadas")
+          PY
