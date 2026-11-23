@@ -14,8 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="Portaria Aruá" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-  <!-- Biblioteca PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Biblioteca PDF carregada apenas ao gerar o documento (não bloqueia a abertura). -->
 
   <style>
     :root {
@@ -640,7 +639,34 @@
   </main>
 
   <script>
-    const { jsPDF } = window.jspdf;
+    // Biblioteca externa só é necessária no momento da geração do PDF.
+    // Não altera armazenamento local, dados ou validações da portaria.
+    let jsPDF = null;
+    let pdfLibraryPromise = null;
+    function carregarBibliotecaPDF() {
+      if (jsPDF) return Promise.resolve();
+      if (pdfLibraryPromise) return pdfLibraryPromise;
+      pdfLibraryPromise = new Promise(function (resolve, reject) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        script.async = true;
+        script.onload = function () {
+          if (!window.jspdf || !window.jspdf.jsPDF) {
+            pdfLibraryPromise = null;
+            reject(new Error("Biblioteca PDF indisponível."));
+            return;
+          }
+          jsPDF = window.jspdf.jsPDF;
+          resolve();
+        };
+        script.onerror = function () {
+          pdfLibraryPromise = null;
+          reject(new Error("Não foi possível carregar o gerador PDF. Verifique a conexão."));
+        };
+        document.head.appendChild(script);
+      });
+      return pdfLibraryPromise;
+    }
 
     let eventoInstalacao = null;
     let logoAtualBase64 = null;
@@ -1107,6 +1133,7 @@
       botao.textContent = "GERANDO PDF...";
 
       try {
+        await carregarBibliotecaPDF();
         const doc = gerarPDF();
 
         const placa = valor("placa") || "veiculo";
