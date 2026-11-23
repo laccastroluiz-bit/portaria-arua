@@ -1,0 +1,31 @@
+name: Portaria Arua - validar abertura rapida e PDF
+on:
+  pull_request:
+    paths:
+      - '1 - controle-acesso-motoristas.html'
+      - '.github/workflows/portaria-perf-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: JavaScript syntax and nonblocking PDF library
+        run: |
+          node <<'JS'
+          const fs=require('node:fs');
+          const vm=require('node:vm');
+          const assert=require('node:assert/strict');
+          const html=fs.readFileSync('1 - controle-acesso-motoristas.html','utf8');
+          const inline=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)];
+          assert.ok(inline.length>=1,'missing inline script');
+          for(const match of inline)new vm.Script(match[1]);
+          assert.ok(!html.includes('<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>'));
+          assert.match(html,/await carregarBibliotecaPDF\\(\\)/);
+          assert.match(html,/new jsPDF\\(/);
+          console.log('Validado: scripts integram o HTML; jsPDF carregado sob demanda.');
+          JS
