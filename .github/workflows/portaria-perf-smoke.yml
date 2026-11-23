@@ -17,15 +17,16 @@ jobs:
       - name: JavaScript syntax and nonblocking PDF library
         run: |
           node <<'JS'
-          const fs=require('node:fs');
-          const vm=require('node:vm');
-          const assert=require('node:assert/strict');
-          const html=fs.readFileSync('1 - controle-acesso-motoristas.html','utf8');
-          const inline=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)];
-          assert.ok(inline.length>=1,'missing inline script');
-          for(const match of inline)new vm.Script(match[1]);
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('1 - controle-acesso-motoristas.html', 'utf8');
+          const start = html.indexOf('  <script>');
+          const end = html.indexOf('  </script>', start);
+          assert.ok(start !== -1 && end > start, 'missing inline script');
+          new vm.Script(html.slice(start + '  <script>'.length, end));
           assert.ok(!html.includes('<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>'));
-          assert.match(html,/await carregarBibliotecaPDF\\(\\)/);
-          assert.match(html,/new jsPDF\\(/);
-          console.log('Validado: scripts integram o HTML; jsPDF carregado sob demanda.');
+          assert.ok(html.includes('await carregarBibliotecaPDF();'));
+          assert.ok(html.includes('new jsPDF('));
+          console.log('Validado: JS sem erro sintatico; PDF carregado sob demanda.');
           JS
